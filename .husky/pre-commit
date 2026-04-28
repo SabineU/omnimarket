@@ -1,0 +1,4 @@
+# .husky/pre-commit – Run lint-staged before each commit
+npx lint-staged # Use this for maximum compatibility
+
+# pnpm exec lint-staged
