@@ -1,0 +1,26 @@
+# .editorconfig – Consistent coding styles across different editors and IDEs
+# See https://editorconfig.org
+
+# root = true means this is the topmost .editorconfig and editors won't look further up the folder tree
+root = true
+
+# Default settings for all files
+[*]
+# Use Unix-style line endings (LF) even on Windows – prevents entire-file diffs
+end_of_line = lf
+# Insert a final newline at the end of every file (POSIX requirement, cleaner diffs)
+insert_final_newline = true
+# Trim trailing whitespace from lines (keeps diffs clean)
+trim_trailing_whitespace = true
+# Use UTF-8 character encoding (the web standard)
+charset = utf-8
+
+# Settings for TypeScript, JavaScript, JSON, and CSS files
+[*.{ts,tsx,js,jsx,mjs,cjs,json,css,scss,html,md,yaml,yml}]
+# Indent using 2 spaces (industry standard for these file types)
+indent_style = space
+indent_size = 2
+
+# Settings for Makefiles and other tab-sensitive files (optional)
+[Makefile]
+indent_style = tab

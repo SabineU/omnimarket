@@ -1,1 +1,67 @@
+# .gitignore – Files and folders that Git should NEVER track
+
+# ------------------------------------------------------------
+# Dependencies (don't commit them – they are huge and generated)
+# ------------------------------------------------------------
 node_modules/
+
+# ------------------------------------------------------------
+# Environment & Secrets (contains API keys, database passwords)
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example          # We DO commit the example file without real secrets
+
+# ------------------------------------------------------------
+# Build output (generated production bundles)
+# ------------------------------------------------------------
+dist/
+build/
+*.tsbuildinfo          # TypeScript incremental build info
+
+# ------------------------------------------------------------
+# Test coverage & reports
+# ------------------------------------------------------------
+coverage/
+allure-results/
+allure-report/
+test-results/
+playwright-report/
+
+# ------------------------------------------------------------
+# Logs & temp files
+# ------------------------------------------------------------
+*.log
+*.tmp
+.DS_Store              # macOS folder metadata
+Thumbs.db              # Windows thumbnail cache
+desktop.ini             # Windows folder settings
+
+# ------------------------------------------------------------
+# IDE & Editor folders (VS Code workspace settings may be shared
+# intentionally, but user-specific settings should never be)
+# ------------------------------------------------------------
+.vscode/settings.json   # Personal VS Code settings
+.idea/                  # JetBrains IDEs
+*.swp                   # Vim swap files
+*.swo
+*~                      # Backup files
+
+# ------------------------------------------------------------
+# Database & Prisma
+# ------------------------------------------------------------
+prisma/migrations/*/    # Migrations are committed but we'll be careful
+# prisma/dev.db         # SQLite dev database if used
+# prisma/dev.db-journal
+
+# ------------------------------------------------------------
+# Docker (optional – if we use Docker later)
+# ------------------------------------------------------------
+# docker-compose.override.yml
+
+# ------------------------------------------------------------
+# Misc
+# ------------------------------------------------------------
+pnpm-debug.log*
+yarn-error.log
+yarn-debug.log*
