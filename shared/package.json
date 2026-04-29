@@ -1,0 +1,21 @@
+{
+  "name": "@omnimarket/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared types, Zod schemas, and utilities for OmniMarket",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
