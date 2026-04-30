@@ -3,3 +3,5 @@ packages:
   - 'backend'
   - 'frontend'
   - 'tests/*'
+allowBuilds:
+  esbuild: false
