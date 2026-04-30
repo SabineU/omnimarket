@@ -1,9 +1,9 @@
 // backend/src/index.ts
-// Entry point – starts the Express server.
-import 'dotenv/config'; // Load .env file at the very beginning
+// Entry point – starts the Express server with validated configuration.
+import { config } from './config.js';
 import app from './app.js';
 
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT; // Already validated, so it's always a number
 
 app.listen(PORT, () => {
   console.log(`🚀 OmniMarket API running on http://localhost:${PORT}`);
