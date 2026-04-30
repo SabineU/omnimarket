@@ -16,13 +16,6 @@
       "@shared/*": ["./shared/*"]
     }
   },
-  "include": [
-    "shared/**/*",
-    "backend/**/*",
-    "frontend/**/*",
-    "tests/**/*",
-    "*.config.mjs",
-    "*.config.ts"
-  ],
+  "include": ["*.config.mjs", "*.config.ts"],
   "exclude": ["node_modules", "dist", "build", "coverage"]
 }

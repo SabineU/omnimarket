@@ -1,0 +1,13 @@
+/* frontend/src/index.css */
+/* Tailwind CSS v4 – no manual configuration needed, just these imports. */
+@import 'tailwindcss';
+
+/* You can add global custom styles below */
+body {
+  margin: 0;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
