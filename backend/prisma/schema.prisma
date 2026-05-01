@@ -1,9 +1,306 @@
 // backend/prisma/schema.prisma
+// OmniMarket – complete database schema for a multi‑vendor e‑commerce platform.
+// This file defines all tables, relations, enums, and indexes.
+// After saving, run: pnpm prisma migrate dev --name init
+
 datasource db {
   provider = "postgresql"
-  // The database URL is now configured in prisma.config.ts
+  // URL is configured in prisma.config.ts, not here (Prisma 7+)
 }
 
 generator client {
   provider = "prisma-client-js"
+}
+
+// =============================================================================
+// ENUMS – Named sets of allowed values for certain columns.
+// =============================================================================
+
+/// User roles in the system
+enum UserRole {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+/// Product listing lifecycle
+enum ProductStatus {
+  DRAFT
+  PENDING // waiting for admin approval (if moderation enabled)
+  ACTIVE
+  INACTIVE
+}
+
+/// Order lifecycle – tracks from placement to delivery / return
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+/// Payment statuses – linked to Stripe
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+/// Discount types for coupons
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+// =============================================================================
+// CORE TABLES
+// =============================================================================
+
+/// Users – all accounts (customers, sellers, admins) share this table.
+/// Roles distinguish them. The password hash is stored; never plain text.
+model User {
+  id           String   @id @default(uuid()) // UUID v4 primary key
+  email        String   @unique // unique login identifier
+  passwordHash String // bcrypt hashed
+  name         String
+  role         UserRole @default(CUSTOMER)
+  avatarUrl    String? // nullable Cloudinary URL
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  sellerProfile SellerProfile? // one-to-one (only if role = SELLER)
+  addresses     Address[] // one-to-many: shipping addresses
+  orders        Order[]        @relation("CustomerOrders") // orders placed by this user
+  reviews       Review[]
+  cartItems     CartItem[] // items in the shopping cart
+  couponUsages  CouponUsage[] // records of coupon usage
+
+  @@index([email]) // speed up login lookups
+  @@map("users") // table name in Postgres
+}
+
+/// SellerProfile – extra information specific to sellers, linked 1:1 to User.
+model SellerProfile {
+  userId         String   @id @unique // PK & FK to User
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName      String
+  description    String? // optional text
+  isApproved     Boolean  @default(false) // admin must approve before listing
+  commissionRate Decimal  @default(10.0) // e.g., 10% platform fee
+  payoutDetails  Json? // encrypted bank info placeholder
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@map("seller_profiles")
+}
+
+/// Address – shipping addresses, owned by a user.
+model Address {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  street    String
+  city      String
+  state     String? // nullable (not all countries use states)
+  zipCode   String
+  country   String
+  isDefault Boolean @default(false)
+
+  orders Order[] @relation("ShippingAddress") // orders shipped to this address
+
+  @@map("addresses")
+}
+
+/// Category – hierarchical product categories (e.g., Electronics > Laptops).
+/// Self-referencing: parentId points to another Category.
+model Category {
+  id       String     @id @default(uuid())
+  name     String
+  slug     String     @unique // URL-friendly identifier
+  parentId String? // nullable: top-level if null
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree") // subcategories
+  imageUrl String?
+
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+/// Product – an item listed by a seller in a category.
+model Product {
+  id          String        @id @default(uuid())
+  sellerId    String
+  seller      SellerProfile @relation(fields: [sellerId], references: [userId], onDelete: Cascade)
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  name        String
+  slug        String        @unique
+  description String
+  basePrice   Decimal
+  status      ProductStatus @default(DRAFT)
+  brand       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  images     ProductImage[]
+  variations ProductVariation[]
+  reviews    Review[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([sellerId])
+  @@index([status])
+  @@map("products")
+}
+
+/// ProductImage – multiple images per product, kept in order.
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String // Cloudinary absolute URL
+  altText   String
+  sortOrder Int     @default(0) // for ordering in gallery
+
+  @@map("product_images")
+}
+
+/// ProductVariation – a specific variant (e.g., size M, color Red) with its own SKU and stock.
+model ProductVariation {
+  id            String  @id @default(uuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku           String  @unique
+  size          String?
+  color         String?
+  priceModifier Decimal @default(0.0) // added to product basePrice
+  stockQty      Int     @default(0)
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@map("product_variations")
+}
+
+/// Review – customer rating and comment on a purchased product.
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rating     Int // 1-5 stars
+  comment    String? // optional text
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, customerId]) // one review per product per customer
+  @@map("reviews")
+}
+
+/// CartItem – represents an item in a user's shopping cart (persisted on server).
+model CartItem {
+  id          String            @id @default(uuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variationId String?
+  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  quantity    Int               @default(1)
+
+  @@unique([userId, productId, variationId]) // no duplicate items in cart
+  @@map("cart_items")
+}
+
+/// Order – a completed (or in-progress) purchase placed by a customer.
+/// In a multi-vendor system, one order can contain items from multiple sellers.
+model Order {
+  id                String      @id @default(uuid())
+  customerId        String
+  customer          User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  status            OrderStatus @default(PENDING)
+  shippingAddressId String
+  shippingAddress   Address     @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  totalAmount       Decimal
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items        OrderItem[]
+  payment      Payment? // one order → one payment
+  couponUsages CouponUsage[] // reverse relation for coupon usage tracking
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+/// OrderItem – a line item in an order, linked to a specific seller for fulfillment.
+model OrderItem {
+  id          String            @id @default(uuid())
+  orderId     String
+  order       Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id])
+  variationId String?
+  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  sellerId    String // seller at time of purchase (redundant for easy filtering)
+  quantity    Int
+  priceAtTime Decimal // snapshot of price (basePrice + modifiers) at purchase time
+
+  @@map("order_items")
+}
+
+/// Payment – stores Stripe payment intent info for an order.
+model Payment {
+  id                    String        @id @default(uuid())
+  orderId               String        @unique
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripePaymentIntentId String        @unique
+  amount                Decimal
+  status                PaymentStatus @default(PENDING)
+  createdAt             DateTime      @default(now())
+
+  @@map("payments")
+}
+
+/// Coupon – discount code created by admin, applicable to orders.
+model Coupon {
+  id            String       @id @default(uuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Decimal // percentage (e.g., 10) or fixed amount (e.g., 5.00)
+  minCartAmount Decimal? // minimum order total to apply (nullable = no minimum)
+  usageLimit    Int? // maximum number of uses (null = unlimited)
+  usedCount     Int          @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  usages CouponUsage[]
+
+  @@map("coupons")
+}
+
+/// CouponUsage – tracks each use of a coupon by a user on a specific order.
+model CouponUsage {
+  id        String   @id @default(uuid())
+  couponId  String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([couponId, userId, orderId]) // prevent double-use on same order
+  @@map("coupon_usages")
 }
