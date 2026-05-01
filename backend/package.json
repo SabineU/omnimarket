@@ -13,7 +13,8 @@
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
     "seed": "prisma db seed",
-    "check-required-files": "powershell -ExecutionPolicy Bypass -File scripts/check-required-files.ps1"
+    "check-required-files": "powershell -ExecutionPolicy Bypass -File scripts/check-required-files.ps1",
+    "test:db:migrate": "dotenv -e .env.test -- pnpm exec prisma migrate deploy"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -39,6 +40,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.12.2",
     "@types/pg": "^8.20.0",
+    "dotenv-cli": "^11.0.0",
     "prisma": "^7.8.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
