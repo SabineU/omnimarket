@@ -1,37 +1,37 @@
 // backend/src/services/auth.service.ts
-// Business logic for authentication (register, login, tokens).
 import bcrypt from 'bcrypt';
 import { prisma } from '../db.js';
 import type { User } from '@prisma/client';
+import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
 
-/**
- * Remove sensitive fields from a user object before sending to client.
- */
+// Response shape for successful registration/login
+export interface AuthResult {
+  user: Omit<User, 'passwordHash'>;
+  accessToken: string;
+  refreshToken: string;
+}
+
 export function sanitizeUser(user: User): Omit<User, 'passwordHash'> {
   const { passwordHash: _passwordHash, ...safe } = user;
   return safe;
 }
 
-/**
- * Register a new user with email, password, and name.
- * Throws UserExistsError if the email is already taken.
- */
 export async function registerUser(data: {
   email: string;
   password: string;
   name: string;
   role?: 'customer' | 'seller';
-}): Promise<User> {
-  // 1. Check if email is already in use
+}): Promise<AuthResult> {
+  // 1. Check if email exists
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
   if (existing) {
     throw new UserExistsError('A user with this email already exists');
   }
 
-  // 2. Hash the password (12 salt rounds is a good balance between security and speed)
+  // 2. Hash password
   const passwordHash = await bcrypt.hash(data.password, 12);
 
-  // 3. Create the user (role defaults to CUSTOMER if not provided)
+  // 3. Create user (tokenVersion defaults to 0)
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -41,10 +41,17 @@ export async function registerUser(data: {
     },
   });
 
-  return user;
+  // 4. Generate tokens
+  const accessToken = generateAccessToken({ id: user.id, role: user.role });
+  const refreshToken = generateRefreshToken({ id: user.id, tokenVersion: user.tokenVersion });
+
+  return {
+    user: sanitizeUser(user),
+    accessToken,
+    refreshToken,
+  };
 }
 
-// Custom error class to be caught by the error‑handling middleware
 export class UserExistsError extends Error {
   constructor(message: string) {
     super(message);

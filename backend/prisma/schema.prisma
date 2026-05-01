@@ -26,7 +26,7 @@ enum UserRole {
 /// Product listing lifecycle
 enum ProductStatus {
   DRAFT
-  PENDING // waiting for admin approval (if moderation enabled)
+  PENDING    // waiting for admin approval (if moderation enabled)
   ACTIVE
   INACTIVE
 }
@@ -62,58 +62,59 @@ enum DiscountType {
 /// Users – all accounts (customers, sellers, admins) share this table.
 /// Roles distinguish them. The password hash is stored; never plain text.
 model User {
-  id           String   @id @default(uuid()) // UUID v4 primary key
-  email        String   @unique // unique login identifier
-  passwordHash String // bcrypt hashed
+  id           String    @id @default(uuid())   // UUID v4 primary key
+  email        String    @unique               // unique login identifier
+  passwordHash String                            // bcrypt hashed
   name         String
-  role         UserRole @default(CUSTOMER)
-  avatarUrl    String? // nullable Cloudinary URL
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         UserRole  @default(CUSTOMER)
+  avatarUrl    String?                           // nullable Cloudinary URL
+  tokenVersion Int       @default(0)            // for refresh token rotation
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Relations
-  sellerProfile SellerProfile? // one-to-one (only if role = SELLER)
-  addresses     Address[] // one-to-many: shipping addresses
-  orders        Order[]        @relation("CustomerOrders") // orders placed by this user
+  sellerProfile SellerProfile?                  // one-to-one (only if role = SELLER)
+  addresses     Address[]                       // one-to-many: shipping addresses
+  orders        Order[]        @relation("CustomerOrders")   // orders placed by this user
   reviews       Review[]
-  cartItems     CartItem[] // items in the shopping cart
-  couponUsages  CouponUsage[] // records of coupon usage
+  cartItems     CartItem[]                       // items in the shopping cart
+  couponUsages  CouponUsage[]                   // records of coupon usage
 
-  @@index([email]) // speed up login lookups
-  @@map("users") // table name in Postgres
+  @@index([email])                               // speed up login lookups
+  @@map("users")                                 // table name in Postgres
 }
 
 /// SellerProfile – extra information specific to sellers, linked 1:1 to User.
 model SellerProfile {
-  userId         String   @id @unique // PK & FK to User
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  storeName      String
-  description    String? // optional text
-  isApproved     Boolean  @default(false) // admin must approve before listing
-  commissionRate Decimal  @default(10.0) // e.g., 10% platform fee
-  payoutDetails  Json? // encrypted bank info placeholder
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  userId          String   @id @unique               // PK & FK to User
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName       String
+  description     String?                            // optional text
+  isApproved      Boolean  @default(false)           // admin must approve before listing
+  commissionRate  Decimal  @default(10.0)            // e.g., 10% platform fee
+  payoutDetails   Json?                              // encrypted bank info placeholder
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
-  products Product[]
+  products        Product[]
 
   @@map("seller_profiles")
 }
 
 /// Address – shipping addresses, owned by a user.
 model Address {
-  id        String  @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   street    String
   city      String
-  state     String? // nullable (not all countries use states)
+  state     String?                                 // nullable (not all countries use states)
   zipCode   String
   country   String
-  isDefault Boolean @default(false)
+  isDefault Boolean  @default(false)
 
-  orders Order[] @relation("ShippingAddress") // orders shipped to this address
+  orders    Order[]  @relation("ShippingAddress")    // orders shipped to this address
 
   @@map("addresses")
 }
@@ -121,15 +122,15 @@ model Address {
 /// Category – hierarchical product categories (e.g., Electronics > Laptops).
 /// Self-referencing: parentId points to another Category.
 model Category {
-  id       String     @id @default(uuid())
-  name     String
-  slug     String     @unique // URL-friendly identifier
-  parentId String? // nullable: top-level if null
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children Category[] @relation("CategoryTree") // subcategories
-  imageUrl String?
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique                       // URL-friendly identifier
+  parentId  String?                                  // nullable: top-level if null
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CategoryTree")     // subcategories
+  imageUrl  String?
 
-  products Product[]
+  products  Product[]
 
   @@index([parentId])
   @@map("categories")
@@ -152,11 +153,11 @@ model Product {
   updatedAt   DateTime      @updatedAt
 
   // Relations
-  images     ProductImage[]
-  variations ProductVariation[]
-  reviews    Review[]
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  images      ProductImage[]
+  variations  ProductVariation[]
+  reviews     Review[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
 
   @@index([categoryId])
   @@index([sellerId])
@@ -169,9 +170,9 @@ model ProductImage {
   id        String  @id @default(uuid())
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String // Cloudinary absolute URL
+  url       String                                 // Cloudinary absolute URL
   altText   String
-  sortOrder Int     @default(0) // for ordering in gallery
+  sortOrder Int     @default(0)                    // for ordering in gallery
 
   @@map("product_images")
 }
@@ -184,11 +185,11 @@ model ProductVariation {
   sku           String  @unique
   size          String?
   color         String?
-  priceModifier Decimal @default(0.0) // added to product basePrice
+  priceModifier Decimal @default(0.0)              // added to product basePrice
   stockQty      Int     @default(0)
 
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
 
   @@map("product_variations")
 }
@@ -200,45 +201,45 @@ model Review {
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   customerId String
   customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  rating     Int // 1-5 stars
-  comment    String? // optional text
+  rating     Int                                    // 1-5 stars
+  comment    String?                                // optional text
   createdAt  DateTime @default(now())
 
-  @@unique([productId, customerId]) // one review per product per customer
+  @@unique([productId, customerId])                // one review per product per customer
   @@map("reviews")
 }
 
 /// CartItem – represents an item in a user's shopping cart (persisted on server).
 model CartItem {
-  id          String            @id @default(uuid())
-  userId      String
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variationId String?
-  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
-  quantity    Int               @default(1)
+  id           String             @id @default(uuid())
+  userId       String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variationId  String?
+  variation    ProductVariation?  @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  quantity     Int                @default(1)
 
-  @@unique([userId, productId, variationId]) // no duplicate items in cart
+  @@unique([userId, productId, variationId])       // no duplicate items in cart
   @@map("cart_items")
 }
 
 /// Order – a completed (or in-progress) purchase placed by a customer.
 /// In a multi-vendor system, one order can contain items from multiple sellers.
 model Order {
-  id                String      @id @default(uuid())
-  customerId        String
-  customer          User        @relation("CustomerOrders", fields: [customerId], references: [id])
-  status            OrderStatus @default(PENDING)
-  shippingAddressId String
-  shippingAddress   Address     @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
-  totalAmount       Decimal
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                 String      @id @default(uuid())
+  customerId         String
+  customer           User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  status             OrderStatus @default(PENDING)
+  shippingAddressId  String
+  shippingAddress    Address     @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  totalAmount        Decimal
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   items        OrderItem[]
-  payment      Payment? // one order → one payment
-  couponUsages CouponUsage[] // reverse relation for coupon usage tracking
+  payment      Payment?               // one order → one payment
+  couponUsages CouponUsage[]          // reverse relation for coupon usage tracking
 
   @@index([customerId])
   @@map("orders")
@@ -246,16 +247,16 @@ model Order {
 
 /// OrderItem – a line item in an order, linked to a specific seller for fulfillment.
 model OrderItem {
-  id          String            @id @default(uuid())
-  orderId     String
-  order       Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product           @relation(fields: [productId], references: [id])
-  variationId String?
-  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
-  sellerId    String // seller at time of purchase (redundant for easy filtering)
-  quantity    Int
-  priceAtTime Decimal // snapshot of price (basePrice + modifiers) at purchase time
+  id            String             @id @default(uuid())
+  orderId       String
+  order         Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product            @relation(fields: [productId], references: [id])
+  variationId   String?
+  variation     ProductVariation?  @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  sellerId      String             // seller at time of purchase (redundant for easy filtering)
+  quantity      Int
+  priceAtTime   Decimal            // snapshot of price (basePrice + modifiers) at purchase time
 
   @@map("order_items")
 }
@@ -278,14 +279,14 @@ model Coupon {
   id            String       @id @default(uuid())
   code          String       @unique
   discountType  DiscountType
-  discountValue Decimal // percentage (e.g., 10) or fixed amount (e.g., 5.00)
-  minCartAmount Decimal? // minimum order total to apply (nullable = no minimum)
-  usageLimit    Int? // maximum number of uses (null = unlimited)
+  discountValue Decimal      // percentage (e.g., 10) or fixed amount (e.g., 5.00)
+  minCartAmount Decimal?     // minimum order total to apply (nullable = no minimum)
+  usageLimit    Int?         // maximum number of uses (null = unlimited)
   usedCount     Int          @default(0)
   expiresAt     DateTime?
   createdAt     DateTime     @default(now())
 
-  usages CouponUsage[]
+  usages        CouponUsage[]
 
   @@map("coupons")
 }
@@ -301,6 +302,6 @@ model CouponUsage {
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  @@unique([couponId, userId, orderId]) // prevent double-use on same order
+  @@unique([couponId, userId, orderId])   // prevent double-use on same order
   @@map("coupon_usages")
 }
