@@ -1,49 +1,37 @@
 // backend/src/app.ts
-// Express application setup – separated from the server start for testability.
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import authRoutes from './routes/auth.routes.js';
+import { errorHandler } from './middlewares/error-handler.js';
 
-// ---------------------------------------------------------------------------
-// Create the Express app
-// ---------------------------------------------------------------------------
 const app = express();
 
-// ---------------------------------------------------------------------------
-// Global Middleware (runs on every request)
-// ---------------------------------------------------------------------------
-
-// Helmet adds security-related HTTP headers (X-Content-Type-Options, etc.)
 app.use(helmet());
-
-// CORS allows requests from other origins, like our React frontend
-// In development, the frontend runs on port 5173.
 app.use(
   cors({
-    origin: ['http://localhost:5173'], // add production URL later
+    origin: ['http://localhost:5173'],
     credentials: true,
   }),
 );
-
-// Parse incoming JSON request bodies (Content-Type: application/json)
 app.use(express.json());
-
-// Morgan logs incoming requests to the console (useful for debugging)
 app.use(morgan('dev'));
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
-
-// Health check – used by monitoring tools and load balancers
+// Health check
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 404 handler for unknown API routes
+// API routes
+app.use('/api/auth', authRoutes);
+
+// 404 handler
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ message: 'Route not found' });
 });
+
+// Global error handler (must be the last middleware)
+app.use(errorHandler);
 
 export default app;
