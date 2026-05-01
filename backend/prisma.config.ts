@@ -17,4 +17,8 @@ export default defineConfig({
   datasource: {
     url: databaseUrl,
   },
+  migrations: {
+    // Location of the seed script – Prisma 7 runs this via tsx
+    seed: 'tsx prisma/seed.ts',
+  },
 });
