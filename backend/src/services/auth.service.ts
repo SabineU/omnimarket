@@ -1,22 +1,19 @@
 // backend/src/services/auth.service.ts
-// Business logic for authentication (register, login, tokens).
 import bcrypt from 'bcrypt';
 import { prisma } from '../db.js';
 import type { User } from '@prisma/client';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 
 // ---------------------------------------------------------------------------
 // Types & Helpers
 // ---------------------------------------------------------------------------
 
-/** Successful authentication result returned to the controller */
 export interface AuthResult {
   user: Omit<User, 'passwordHash'>;
   accessToken: string;
   refreshToken: string;
 }
 
-/** Remove sensitive fields before sending a user object to the client */
 export function sanitizeUser(user: User): Omit<User, 'passwordHash'> {
   const { passwordHash: _passwordHash, ...safe } = user;
   return safe;
@@ -40,31 +37,30 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+export class TokenRefreshError extends Error {
+  constructor(message = 'Invalid or expired refresh token') {
+    super(message);
+    this.name = 'TokenRefreshError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public Functions
 // ---------------------------------------------------------------------------
 
-/**
- * Register a new user.
- * Throws UserExistsError if the email is already taken.
- * Returns the new user (sanitized) along with access + refresh tokens.
- */
 export async function registerUser(data: {
   email: string;
   password: string;
   name: string;
   role?: 'customer' | 'seller';
 }): Promise<AuthResult> {
-  // 1. Check if email exists
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
   if (existing) {
     throw new UserExistsError('A user with this email already exists');
   }
 
-  // 2. Hash the password (12 salt rounds)
   const passwordHash = await bcrypt.hash(data.password, 12);
 
-  // 3. Create user (tokenVersion defaults to 0)
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -74,7 +70,26 @@ export async function registerUser(data: {
     },
   });
 
-  // 4. Generate tokens
+  const accessToken = generateAccessToken({ id: user.id, role: user.role });
+  const refreshToken = generateRefreshToken({
+    id: user.id,
+    tokenVersion: user.tokenVersion,
+  });
+
+  return { user: sanitizeUser(user), accessToken, refreshToken };
+}
+
+export async function loginUser(data: { email: string; password: string }): Promise<AuthResult> {
+  const user = await prisma.user.findUnique({ where: { email: data.email } });
+  if (!user) {
+    throw new InvalidCredentialsError();
+  }
+
+  const isPasswordValid = await bcrypt.compare(data.password, user.passwordHash);
+  if (!isPasswordValid) {
+    throw new InvalidCredentialsError();
+  }
+
   const accessToken = generateAccessToken({ id: user.id, role: user.role });
   const refreshToken = generateRefreshToken({
     id: user.id,
@@ -85,30 +100,50 @@ export async function registerUser(data: {
 }
 
 /**
- * Log in an existing user.
- * Throws InvalidCredentialsError if email doesn't exist or password is wrong.
- * Returns the user (sanitized) along with access + refresh tokens.
+ * Refresh an access token using a valid refresh token (rotation).
+ * - Verifies the refresh token signature and expiration.
+ * - Checks that the tokenVersion in the payload matches the user's current version.
+ * - Increments the user's tokenVersion to invalidate all old refresh tokens.
+ * - Returns a NEW access token and a NEW refresh token.
  */
-export async function loginUser(data: { email: string; password: string }): Promise<AuthResult> {
-  // 1. Find user by email
-  const user = await prisma.user.findUnique({ where: { email: data.email } });
+export async function refreshUserToken(incomingRefreshToken: string): Promise<AuthResult> {
+  // 1. Decode and verify the refresh token (throws if invalid)
+  let payload;
+  try {
+    payload = verifyRefreshToken(incomingRefreshToken);
+  } catch {
+    throw new TokenRefreshError('Invalid or expired refresh token');
+  }
+
+  // 2. Fetch the user from the database
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+  });
   if (!user) {
-    // Use a generic message to avoid leaking whether the email exists
-    throw new InvalidCredentialsError();
+    throw new TokenRefreshError('User no longer exists');
   }
 
-  // 2. Compare provided password with the stored hash
-  const isPasswordValid = await bcrypt.compare(data.password, user.passwordHash);
-  if (!isPasswordValid) {
-    throw new InvalidCredentialsError();
+  // 3. Check token version – if it doesn't match, the token has already been rotated
+  if (payload.tokenVersion !== user.tokenVersion) {
+    // Possible token reuse detected – we could also revoke all tokens here
+    throw new TokenRefreshError('Refresh token has been revoked');
   }
 
-  // 3. Generate tokens (tokenVersion is used for refresh token rotation)
-  const accessToken = generateAccessToken({ id: user.id, role: user.role });
-  const refreshToken = generateRefreshToken({
-    id: user.id,
-    tokenVersion: user.tokenVersion,
+  // 4. Rotate: increment the token version so the old token becomes invalid
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: { tokenVersion: { increment: 1 } },
   });
 
-  return { user: sanitizeUser(user), accessToken, refreshToken };
+  // 5. Generate new token pair
+  const accessToken = generateAccessToken({
+    id: updatedUser.id,
+    role: updatedUser.role,
+  });
+  const refreshToken = generateRefreshToken({
+    id: updatedUser.id,
+    tokenVersion: updatedUser.tokenVersion,
+  });
+
+  return { user: sanitizeUser(updatedUser), accessToken, refreshToken };
 }

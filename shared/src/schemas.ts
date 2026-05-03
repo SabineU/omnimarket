@@ -18,6 +18,11 @@ export const registerSchema = z.object({
   role: z.enum([UserRole.CUSTOMER, UserRole.SELLER]).optional().default(UserRole.CUSTOMER),
 });
 
+// ---- Token Refresh ----
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
 // ---- Address ----
 export const addressSchema = z.object({
   street: z.string().min(1, 'Street is required'),
