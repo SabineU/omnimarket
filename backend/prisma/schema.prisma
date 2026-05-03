@@ -1,7 +1,6 @@
 // backend/prisma/schema.prisma
 // OmniMarket – complete database schema for a multi‑vendor e‑commerce platform.
 // This file defines all tables, relations, enums, and indexes.
-// After saving, run: pnpm prisma migrate dev --name init
 
 datasource db {
   provider = "postgresql"
@@ -73,12 +72,13 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   // Relations
-  sellerProfile SellerProfile?                  // one-to-one (only if role = SELLER)
-  addresses     Address[]                       // one-to-many: shipping addresses
-  orders        Order[]        @relation("CustomerOrders")   // orders placed by this user
-  reviews       Review[]
-  cartItems     CartItem[]                       // items in the shopping cart
-  couponUsages  CouponUsage[]                   // records of coupon usage
+  sellerProfile        SellerProfile?
+  addresses            Address[]
+  orders               Order[]              @relation("CustomerOrders")
+  reviews              Review[]
+  cartItems            CartItem[]
+  couponUsages         CouponUsage[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@index([email])                               // speed up login lookups
   @@map("users")                                 // table name in Postgres
@@ -304,4 +304,18 @@ model CouponUsage {
 
   @@unique([couponId, userId, orderId])   // prevent double-use on same order
   @@map("coupon_usages")
+}
+
+/// PasswordResetToken – one‑time token for the "forgot password" flow.
+/// Linked to a user; deleted after successful password reset.
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String                               // bcrypt hash of the reset token
+  expiresAt DateTime                             // tokens are valid for 1 hour
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
