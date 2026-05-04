@@ -10,6 +10,7 @@ import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import categoryRoutes from './routes/category.routes.js'; // <-- added
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -49,24 +50,26 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Authentication routes (login, register, refresh, forgot/reset password)
+// Authentication routes
 app.use('/api/auth', authRoutes);
 
-// User profile routes (all require authentication)
+// User profile routes
 app.use('/api/users', userRoutes);
 
-// Address routes – mounted under /api/users/me/addresses
+// Address routes
 app.use('/api/users/me/addresses', addressRoutes);
 
-// Seller routes – restricted to SELLER role
+// Seller routes
 app.use('/api/seller', sellerRoutes);
 
-// Admin routes – restricted to ADMIN role
+// Admin routes
 app.use('/api/admin', adminRoutes);
+
+// Category routes – public, no authentication
+app.use('/api/categories', categoryRoutes);
 
 // ---------- Protected route examples ----------
 
-// Any authenticated user can access this endpoint
 app.get('/api/me', authenticate, (req: Request, res: Response) => {
   const { userId, role } = req.user ?? {};
   if (!userId || !role) {
@@ -79,7 +82,6 @@ app.get('/api/me', authenticate, (req: Request, res: Response) => {
   });
 });
 
-// Only admin users can access this endpoint – use the exact enum value 'ADMIN'
 app.get('/api/admin', authenticate, authorize('ADMIN'), (_req: Request, res: Response) => {
   res.json({
     status: 'success',
