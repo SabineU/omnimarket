@@ -7,6 +7,7 @@ import morgan from 'morgan';
 
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import addressRoutes from './routes/address.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -52,12 +53,13 @@ app.use('/api/auth', authRoutes);
 // User profile routes (all require authentication)
 app.use('/api/users', userRoutes);
 
+// Address routes – mounted under /api/users/me/addresses
+app.use('/api/users/me/addresses', addressRoutes);
+
 // ---------- Protected route examples ----------
 
 // Any authenticated user can access this endpoint
 app.get('/api/me', authenticate, (req: Request, res: Response) => {
-  // The authenticate middleware guarantees that req.user exists.
-  // We extract the fields directly; if ever missing, this is a critical bug.
   const { userId, role } = req.user ?? {};
   if (!userId || !role) {
     res.status(500).json({ message: 'Internal error: user not attached to request' });

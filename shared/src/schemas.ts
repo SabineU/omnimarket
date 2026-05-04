@@ -49,6 +49,9 @@ export const addressSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
+// Partial schema for updating an address – every field is optional
+export const addressUpdateSchema = addressSchema.partial();
+
 // ---- Product ----
 export const productCreateSchema = z.object({
   name: z.string().min(3, 'Product name must be at least 3 characters'),
