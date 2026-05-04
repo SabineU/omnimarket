@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -19,11 +20,10 @@ const app = express();
 // Global Middleware (runs on every request)
 // ---------------------------------------------------------------------------
 
-// Helmet adds security-related HTTP headers (X-Content-Type-Options, etc.)
+// Helmet adds security-related HTTP headers
 app.use(helmet());
 
-// CORS allows requests from other origins, like our React frontend
-// In development, the frontend runs on port 5173.
+// CORS allows requests from our React frontend
 app.use(
   cors({
     origin: ['http://localhost:5173'], // add production URL later
@@ -31,47 +31,46 @@ app.use(
   }),
 );
 
-// Parse incoming JSON request bodies (Content-Type: application/json)
+// Parse incoming JSON request bodies
 app.use(express.json());
 
-// Morgan logs incoming requests to the console (useful for debugging)
+// Morgan logs requests to the console
 app.use(morgan('dev'));
 
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
-// Health check – used by monitoring tools and load balancers
+// Health check
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Authentication routes (login, register, refresh)
+// Authentication routes (login, register, refresh, forgot/reset password)
 app.use('/api/auth', authRoutes);
+
+// User profile routes (all require authentication)
+app.use('/api/users', userRoutes);
 
 // ---------- Protected route examples ----------
 
 // Any authenticated user can access this endpoint
 app.get('/api/me', authenticate, (req: Request, res: Response) => {
-  // The authenticate middleware guarantees req.user exists, but we satisfy
-  // the lint rule by checking explicitly (avoids non-null assertion).
-  if (!req.user) {
-    // This should never happen, but it's a safety net.
-    res.status(500).json({ status: 'error', message: 'User not attached to request' });
+  // The authenticate middleware guarantees that req.user exists.
+  // We extract the fields directly; if ever missing, this is a critical bug.
+  const { userId, role } = req.user ?? {};
+  if (!userId || !role) {
+    res.status(500).json({ message: 'Internal error: user not attached to request' });
     return;
   }
-
   res.json({
     status: 'success',
-    data: {
-      userId: req.user.userId,
-      role: req.user.role,
-    },
+    data: { userId, role },
   });
 });
 
-// Only admin users can access this endpoint (role is uppercase as stored in DB)
-app.get('/api/admin', authenticate, authorize('ADMIN'), (_req: Request, res: Response) => {
+// Only admin users can access this endpoint
+app.get('/api/admin', authenticate, authorize('admin'), (_req: Request, res: Response) => {
   res.json({
     status: 'success',
     message: 'Welcome, Admin!',
@@ -79,12 +78,12 @@ app.get('/api/admin', authenticate, authorize('ADMIN'), (_req: Request, res: Res
 });
 
 // ---------------------------------------------------------------------------
-// 404 handler for unknown API routes
+// 404 handler
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Global error handler (must be the last middleware)
+// Global error handler (must be last)
 app.use(errorHandler);
 
 export default app;
