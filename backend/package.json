@@ -17,10 +17,10 @@
     "test:db:migrate": "dotenv -e .env.test -- pnpm exec prisma migrate deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts",
     "test:api": "vitest run src/__tests__/auth.api.test.ts",
-    "test:coverage": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts --coverage",
-    "test:coverage:open": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts --coverage && start coverage/index.html"
+    "test:unit": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts src/__tests__/seller.service.test.ts",
+    "test:coverage": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts src/__tests__/seller.service.test.ts --coverage",
+    "test:coverage:open": "vitest run src/__tests__/auth.service.test.ts src/__tests__/user.service.test.ts src/__tests__/address.service.test.ts src/__tests__/seller.service.test.ts --coverage && start coverage/index.html"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

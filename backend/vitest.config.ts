@@ -16,7 +16,8 @@ export default defineConfig({
       include: [
         'src/services/auth.service.ts',
         'src/services/user.service.ts',
-        'src/services/address.service.ts', // <-- added
+        'src/services/address.service.ts',
+        'src/services/seller.service.ts', // added
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],

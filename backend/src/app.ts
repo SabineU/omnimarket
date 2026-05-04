@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
+import sellerRoutes from './routes/seller.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -55,6 +56,9 @@ app.use('/api/users', userRoutes);
 
 // Address routes – mounted under /api/users/me/addresses
 app.use('/api/users/me/addresses', addressRoutes);
+
+// Seller routes – restricted to SELLER role
+app.use('/api/seller', sellerRoutes);
 
 // ---------- Protected route examples ----------
 

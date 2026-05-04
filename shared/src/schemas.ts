@@ -39,6 +39,13 @@ export const updateProfileSchema = z.object({
   avatarUrl: z.string().url().nullable().optional(), // nullable to allow clearing the avatar
 });
 
+// ---- Seller Profile ----
+export const sellerProfileSchema = z.object({
+  storeName: z.string().min(2, 'Store name must be at least 2 characters'),
+  description: z.string().optional(),
+  payoutDetails: z.any().optional(), // JSON object for bank details; kept flexible
+});
+
 // ---- Address ----
 export const addressSchema = z.object({
   street: z.string().min(1, 'Street is required'),
