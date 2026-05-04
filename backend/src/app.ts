@@ -79,8 +79,8 @@ app.get('/api/me', authenticate, (req: Request, res: Response) => {
   });
 });
 
-// Only admin users can access this endpoint
-app.get('/api/admin', authenticate, authorize('admin'), (_req: Request, res: Response) => {
+// Only admin users can access this endpoint – use the exact enum value 'ADMIN'
+app.get('/api/admin', authenticate, authorize('ADMIN'), (_req: Request, res: Response) => {
   res.json({
     status: 'success',
     message: 'Welcome, Admin!',

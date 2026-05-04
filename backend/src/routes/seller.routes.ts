@@ -4,14 +4,14 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
 import { authorize } from '../middlewares/rbac.js';
 import { validate } from '../middlewares/validate.js';
-import { sellerProfileSchema } from '@omnimarket/shared';
+import { sellerProfileSchema, UserRole } from '@omnimarket/shared';
 import * as sellerController from '../controllers/seller.controller.js';
 
 const router = Router();
 
 // Every route in this router requires authentication and the SELLER role
 router.use(authenticate);
-router.use(authorize('seller'));
+router.use(authorize(UserRole.SELLER)); // 'SELLER' – exact value from the database
 
 // GET /api/seller/profile
 router.get('/profile', sellerController.getProfile);

@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // backend/src/__tests__/services/auth.service.test.ts
+// Unit tests for the authentication service.
+// All relative imports go two levels up because we are inside __tests__/services/.
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
@@ -131,7 +134,11 @@ describe('registerUser', () => {
   it('should throw UserExistsError if email already taken', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'existing' } as any);
     await expect(
-      registerUser({ email: 'existing@example.com', password: 'Password123!', name: 'Existing' }),
+      registerUser({
+        email: 'existing@example.com',
+        password: 'Password123!',
+        name: 'Existing',
+      }),
     ).rejects.toThrow(UserExistsError);
   });
 });
@@ -199,7 +206,10 @@ describe('refreshUserToken', () => {
       updatedAt: new Date(),
     };
     vi.mocked(prisma.user.findUnique).mockResolvedValue(fakeUser as any);
-    vi.mocked(prisma.user.update).mockResolvedValue({ ...fakeUser, tokenVersion: 4 } as any);
+    vi.mocked(prisma.user.update).mockResolvedValue({
+      ...fakeUser,
+      tokenVersion: 4,
+    } as any);
 
     const result = await refreshUserToken('old-refresh-token');
 
@@ -212,8 +222,14 @@ describe('refreshUserToken', () => {
   });
 
   it('should throw TokenRefreshError if version mismatch', async () => {
-    vi.mocked(verifyRefreshToken).mockReturnValue({ userId: 'u1', tokenVersion: 2 });
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'u1', tokenVersion: 5 } as any);
+    vi.mocked(verifyRefreshToken).mockReturnValue({
+      userId: 'u1',
+      tokenVersion: 2,
+    });
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      tokenVersion: 5,
+    } as any);
     await expect(refreshUserToken('old')).rejects.toThrow(TokenRefreshError);
   });
 });
@@ -262,6 +278,8 @@ describe('resetPassword', () => {
     await expect(resetPassword('valid-token', 'NewPass456!')).resolves.toBeUndefined();
     expect(bcrypt.hash).toHaveBeenCalledWith('NewPass456!', 12);
     expect(prisma.user.update).toHaveBeenCalled();
-    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({ where: { id: 'rt1' } });
+    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({
+      where: { id: 'rt1' },
+    });
   });
 });

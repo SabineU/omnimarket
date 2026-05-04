@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run src/__tests__/services",
-    "test:api": "vitest run src/__tests__/api",
+    "test:api": "vitest run src/__tests__/api --fileParallelism=false",
     "test:coverage": "vitest run src/__tests__/services --coverage",
     "test:coverage:open": "vitest run src/__tests__/services --coverage && start coverage/index.html"
   },

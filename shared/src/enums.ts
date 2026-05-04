@@ -1,6 +1,8 @@
 // shared/src/enums.ts
 // Central place for all enum-like constants used across the app.
 // We use string literal unions for better type safety and compatibility with Zod.
+// The runtime values are UPPERCASE because they match the Prisma enum values
+// stored in the PostgreSQL database.
 
 /**
  * User roles in the system.
@@ -9,9 +11,9 @@
  * ADMIN    – platform administrator
  */
 export const UserRole = {
-  CUSTOMER: 'customer',
-  SELLER: 'seller',
-  ADMIN: 'admin',
+  CUSTOMER: 'CUSTOMER',
+  SELLER: 'SELLER',
+  ADMIN: 'ADMIN',
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
@@ -19,33 +21,33 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
  * Product listing statuses (lifecycle of a product from creation to removal).
  */
 export const ProductStatus = {
-  DRAFT: 'draft',
-  PENDING: 'pending', // Waiting for admin approval
-  ACTIVE: 'active',
-  INACTIVE: 'inactive',
+  DRAFT: 'DRAFT',
+  PENDING: 'PENDING', // Waiting for admin approval
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
 } as const;
 export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
 
 /**
- * Order statuses – tracks the order from placement to delivery.
+ * Order statuses – tracks the order from placement to delivery / return.
  */
 export const OrderStatus = {
-  PENDING: 'pending',
-  CONFIRMED: 'confirmed',
-  SHIPPED: 'shipped',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
-  RETURNED: 'returned',
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+  RETURNED: 'RETURNED',
 } as const;
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
 
 /**
- * Payment statuses.
+ * Payment statuses – linked to Stripe payment events.
  */
 export const PaymentStatus = {
-  PENDING: 'pending',
-  SUCCEEDED: 'succeeded',
-  FAILED: 'failed',
-  REFUNDED: 'refunded',
+  PENDING: 'PENDING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED',
+  REFUNDED: 'REFUNDED',
 } as const;
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];

@@ -15,6 +15,7 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(2, 'Name must be at least 2 characters'),
+  //role: z.enum([UserRole.CUSTOMER, UserRole.SELLER]).optional().default(UserRole.CUSTOMER),
   role: z.enum([UserRole.CUSTOMER, UserRole.SELLER]).optional().default(UserRole.CUSTOMER),
 });
 
