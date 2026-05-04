@@ -2,10 +2,10 @@
 // backend/src/__tests__/seller.service.test.ts
 // Unit tests for the seller service.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getSellerProfile, upsertSellerProfile } from '../services/seller.service.js';
+import { getSellerProfile, upsertSellerProfile } from '../../services/seller.service.js';
 
 // Mock the database module
-vi.mock('../db.js', () => {
+vi.mock('../../db.js', () => {
   return {
     prisma: {
       sellerProfile: {
@@ -16,7 +16,7 @@ vi.mock('../db.js', () => {
   };
 });
 
-import { prisma } from '../db.js';
+import { prisma } from '../../db.js';
 
 beforeEach(() => {
   vi.clearAllMocks();

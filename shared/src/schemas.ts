@@ -46,6 +46,11 @@ export const sellerProfileSchema = z.object({
   payoutDetails: z.any().optional(), // JSON object for bank details; kept flexible
 });
 
+// ---- Admin ----
+export const adminApproveSellerSchema = z.object({
+  isApproved: z.boolean(),
+});
+
 // ---- Address ----
 export const addressSchema = z.object({
   street: z.string().min(1, 'Street is required'),

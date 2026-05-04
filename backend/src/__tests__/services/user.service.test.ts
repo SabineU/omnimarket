@@ -4,10 +4,10 @@
 // We mock Prisma to isolate business logic.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getProfile, updateProfile } from '../services/user.service.js';
+import { getProfile, updateProfile } from '../../services/user.service.js';
 
 // Mock the database module
-vi.mock('../db.js', () => {
+vi.mock('../../db.js', () => {
   return {
     prisma: {
       user: {
@@ -18,7 +18,7 @@ vi.mock('../db.js', () => {
   };
 });
 
-import { prisma } from '../db.js';
+import { prisma } from '../../db.js';
 
 // We'll also mock sanitizeUser indirectly – the real one is imported from auth.service,
 // but that code is tested separately. Here we just let it run (it only destructures).

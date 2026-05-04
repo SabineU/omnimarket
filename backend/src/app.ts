@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -59,6 +60,9 @@ app.use('/api/users/me/addresses', addressRoutes);
 
 // Seller routes – restricted to SELLER role
 app.use('/api/seller', sellerRoutes);
+
+// Admin routes – restricted to ADMIN role
+app.use('/api/admin', adminRoutes);
 
 // ---------- Protected route examples ----------
 

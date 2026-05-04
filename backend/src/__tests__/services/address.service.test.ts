@@ -8,10 +8,10 @@ import {
   createAddress,
   updateAddress,
   deleteAddress,
-} from '../services/address.service.js';
+} from '../../services/address.service.js';
 
 // Mock the database module
-vi.mock('../db.js', () => {
+vi.mock('../../db.js', () => {
   return {
     prisma: {
       address: {
@@ -26,7 +26,7 @@ vi.mock('../db.js', () => {
   };
 });
 
-import { prisma } from '../db.js';
+import { prisma } from '../../db.js';
 
 beforeEach(() => {
   vi.clearAllMocks();

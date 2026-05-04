@@ -5,8 +5,8 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import app from '../app.js'; // Our Express application
-import { resetTestDatabase } from '../test-utils/setup.js';
+import app from '../../app.js'; // Our Express application
+import { resetTestDatabase } from '../../test-utils/setup.js';
 
 // ---------------------------------------------------------------------------
 // Before all tests in this file, reset the test database to a clean state.
