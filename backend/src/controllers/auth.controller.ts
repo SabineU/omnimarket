@@ -66,9 +66,9 @@ export async function refreshToken(req: Request, res: Response, next: NextFuncti
 /**
  * POST /api/auth/forgot-password
  * Accepts an email address. If a user with that email exists, a reset token
- * is created. In development, the token is returned in the response.
- * In production, the token would be sent via email and the response would
- * always be the same generic message.
+ * is created. In development and test environments, the token is returned in
+ * the response for convenience. In production, the token is only sent via email
+ * and the response contains a generic message.
  */
 export async function forgotPassword(
   req: Request,
@@ -80,14 +80,14 @@ export async function forgotPassword(
     const token = await authService.requestPasswordReset(email);
 
     // Always return the same response to prevent email enumeration attacks.
-    // In development, we also include the token so we can test without email.
     const message = 'If an account with that email exists, a password reset link has been sent.';
 
     res.status(200).json({
       status: 'success',
       message,
-      // ⚠️ Only for development – remove in production
-      ...(process.env.NODE_ENV === 'development' && token ? { devToken: token } : {}),
+      // ⚠️ Only return the plain token in non‑production environments.
+      // In production, this would be sent via email and never exposed in the API response.
+      ...(process.env.NODE_ENV !== 'production' && token ? { devToken: token } : {}),
     });
   } catch (error) {
     next(error);
