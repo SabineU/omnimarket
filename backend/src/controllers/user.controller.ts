@@ -5,8 +5,6 @@ import * as userService from '../services/user.service.js';
 
 /**
  * Helper that extracts the authenticated user's ID from `req.user`.
- * Because the `authenticate` middleware runs first, `req.user` should always exist.
- * If it doesn't, we throw a 500 error (critical bug).
  */
 function getAuthenticatedUserId(req: Request): string {
   const userId = req.user?.userId;
@@ -18,8 +16,6 @@ function getAuthenticatedUserId(req: Request): string {
 
 /**
  * GET /api/users/me
- * Returns the profile of the currently authenticated user.
- * Requires a valid access token.
  */
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -36,8 +32,6 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
 
 /**
  * PUT /api/users/me
- * Updates the profile of the currently authenticated user.
- * Only allowed fields (name, avatarUrl) are accepted.
  */
 export async function updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -46,6 +40,24 @@ export async function updateMe(req: Request, res: Response, next: NextFunction):
     res.status(200).json({
       status: 'success',
       data: { user: updatedProfile },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/users/me
+ * Anonymizes the authenticated user's account (GDPR right to erasure).
+ */
+export async function deleteMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const anonymizedUser = await userService.anonymizeUser(userId);
+    res.status(200).json({
+      status: 'success',
+      data: { user: anonymizedUser },
+      message: 'Your account has been anonymised. You cannot log in again.',
     });
   } catch (error) {
     next(error);

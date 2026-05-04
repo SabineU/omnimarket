@@ -17,4 +17,7 @@ router.get('/me', userController.getMe);
 // PUT /api/users/me – update current user's profile
 router.put('/me', validate(updateProfileSchema), userController.updateMe);
 
+// DELETE /api/users/me – anonymize (GDPR deletion)
+router.delete('/me', userController.deleteMe);
+
 export default router;
