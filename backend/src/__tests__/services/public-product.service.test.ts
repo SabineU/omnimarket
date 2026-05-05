@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // backend/src/__tests__/services/public-product.service.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getPublicProducts } from '../../services/public-product.service.js';
+import { getPublicProducts, getProductBySlug } from '../../services/public-product.service.js';
 
 // Mock the database module
 vi.mock('../../db.js', () => {
@@ -10,6 +10,7 @@ vi.mock('../../db.js', () => {
       product: {
         findMany: vi.fn(),
         count: vi.fn(),
+        findUnique: vi.fn(), // <-- added for getProductBySlug
       },
       category: {
         findUnique: vi.fn(),
@@ -24,6 +25,9 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// =============================================================================
+// getPublicProducts (existing)
+// =============================================================================
 describe('getPublicProducts', () => {
   it('should return products with default pagination and only ACTIVE status', async () => {
     const mockProducts = [
@@ -73,24 +77,16 @@ describe('getPublicProducts', () => {
   });
 
   it('should filter by category slug and include descendants', async () => {
-    // Mock the recursive category fetch
     const mockCategory = {
       id: 'cat-1',
       slug: 'electronics',
-      children: [
-        {
-          id: 'cat-2',
-          slug: 'laptops',
-          children: [],
-        },
-      ],
+      children: [{ id: 'cat-2', slug: 'laptops', children: [] }],
     };
     vi.mocked(prisma.category.findUnique).mockResolvedValue(mockCategory as any);
     vi.mocked(prisma.product.findMany).mockResolvedValue([]);
     vi.mocked(prisma.product.count).mockResolvedValue(0);
 
     await getPublicProducts({ category: 'electronics' });
-
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -121,7 +117,7 @@ describe('getPublicProducts', () => {
     await getPublicProducts({ page: 3, limit: 10 });
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        skip: 20, // (page-1) * limit = 20
+        skip: 20,
         take: 10,
       }),
     );
@@ -137,5 +133,44 @@ describe('getPublicProducts', () => {
         orderBy: { basePrice: 'asc' },
       }),
     );
+  });
+});
+
+// =============================================================================
+// getProductBySlug (new)
+// =============================================================================
+describe('getProductBySlug', () => {
+  it('should return a product with its details when found', async () => {
+    const mockProduct = {
+      id: 'p1',
+      slug: 'smartphone',
+      name: 'Smartphone',
+      basePrice: 699.99,
+      status: 'ACTIVE',
+      images: [{ url: 'http://example.com/img.jpg', altText: 'Phone' }],
+      variations: [{ sku: 'SP1', color: 'Black', stockQty: 10 }],
+      seller: { id: 's1', storeName: 'TechStore' },
+      reviews: [{ rating: 5 }, { rating: 4 }],
+    };
+    vi.mocked(prisma.product.findUnique).mockResolvedValue(mockProduct as any);
+
+    const result = await getProductBySlug('smartphone');
+    expect(result.name).toBe('Smartphone');
+    expect(result.averageRating).toBe(4.5);
+    expect(result.reviewCount).toBe(2);
+    expect(prisma.product.findUnique).toHaveBeenCalledWith({
+      where: { slug: 'smartphone' },
+      include: expect.objectContaining({
+        images: { orderBy: { sortOrder: 'asc' } },
+        variations: true,
+        seller: { select: { id: true, storeName: true } },
+        reviews: { select: { rating: true } },
+      }),
+    });
+  });
+
+  it('should throw an error if the slug is not found', async () => {
+    vi.mocked(prisma.product.findUnique).mockResolvedValue(null);
+    await expect(getProductBySlug('nonexistent')).rejects.toThrow('Product not found');
   });
 });

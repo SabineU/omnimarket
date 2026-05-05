@@ -1,9 +1,9 @@
 // backend/src/services/public-product.service.ts
-// Business logic for the public product listing.
+// Business logic for the public product listing and detail.
 // Supports search, filtering by category and price, sorting, and pagination.
 import { prisma } from '../db.js';
 import type { Product, ProductImage, ProductVariation } from '@prisma/client';
-import type { Prisma } from '@prisma/client'; // import type, not value
+import type { Prisma } from '@prisma/client';
 
 /** Type for a product returned in the public listing */
 export type PublicProduct = Product & {
@@ -50,14 +50,8 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
   const limit = Math.min(100, Math.max(1, options.limit ?? 20));
   const skip = (page - 1) * limit;
 
-  // ---------------------------------------------------------------------------
-  // Build the WHERE clause dynamically based on provided filters
-  // ---------------------------------------------------------------------------
-  const where: Prisma.ProductWhereInput = {
-    status: 'ACTIVE',
-  };
+  const where: Prisma.ProductWhereInput = { status: 'ACTIVE' };
 
-  // Text search: look in name, description, and brand (case‑insensitive)
   if (options.search) {
     const searchTerm = options.search;
     where.OR = [
@@ -67,15 +61,12 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
     ];
   }
 
-  // Category filter: find by slug and include all subcategories
   if (options.category) {
     const categoryWithDescendants = await prisma.category.findUnique({
       where: { slug: options.category },
       include: {
         children: {
-          include: {
-            children: true,
-          },
+          include: { children: true },
         },
       },
     });
@@ -96,7 +87,6 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
     }
   }
 
-  // Price range filter – use a safe spread to avoid undefined properties
   if (options.minPrice !== undefined || options.maxPrice !== undefined) {
     where.basePrice = {
       ...(options.minPrice !== undefined && { gte: options.minPrice }),
@@ -104,9 +94,6 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Build the ORDER BY clause based on the sort parameter
-  // ---------------------------------------------------------------------------
   let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: 'desc' };
   switch (options.sort) {
     case 'price_asc':
@@ -126,9 +113,6 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
       break;
   }
 
-  // ---------------------------------------------------------------------------
-  // Execute the query with count, filtering, sorting, and pagination
-  // ---------------------------------------------------------------------------
   const [products, totalItems] = await Promise.all([
     prisma.product.findMany({
       where,
@@ -138,18 +122,13 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
       include: {
         images: true,
         variations: true,
-        seller: {
-          select: { id: true, storeName: true },
-        },
-        reviews: {
-          select: { rating: true },
-        },
+        seller: { select: { id: true, storeName: true } },
+        reviews: { select: { rating: true } },
       },
     }),
     prisma.product.count({ where }),
   ]);
 
-  // Calculate average rating for each product
   const productsWithRating: PublicProduct[] = products.map((product) => {
     const { reviews, ...rest } = product;
     const reviewCount = reviews.length;
@@ -167,6 +146,39 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
       limit,
     },
   };
+}
+
+/**
+ * Retrieve a single product by its URL‑friendly slug.
+ * Includes images, variations, seller info, and review statistics.
+ * Throws a generic error if the slug is not found.
+ */
+export async function getProductBySlug(slug: string): Promise<PublicProduct> {
+  const product = await prisma.product.findUnique({
+    where: { slug },
+    include: {
+      images: { orderBy: { sortOrder: 'asc' } },
+      variations: true,
+      seller: {
+        select: { id: true, storeName: true },
+      },
+      reviews: {
+        select: { rating: true },
+      },
+    },
+  });
+
+  if (!product) {
+    throw new Error('Product not found');
+  }
+
+  // Calculate average rating
+  const { reviews, ...rest } = product;
+  const reviewCount = reviews.length;
+  const averageRating =
+    reviewCount > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount : null;
+
+  return { ...rest, averageRating, reviewCount };
 }
 
 /**
