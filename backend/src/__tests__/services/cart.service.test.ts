@@ -6,6 +6,7 @@ import {
   addCartItem,
   updateCartItemQuantity,
   removeCartItem,
+  mergeCart,
 } from '../../services/cart.service.js';
 
 // Mock the database module
@@ -20,6 +21,8 @@ vi.mock('../../db.js', () => {
         update: vi.fn(),
         delete: vi.fn(),
       },
+      // $transaction simply runs the callback with the mocked prisma
+      $transaction: vi.fn((callback: any) => callback(prisma)),
     },
   };
 });
@@ -35,7 +38,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe('getUserCart', () => {
   it('should return enriched cart items', async () => {
-    const mockItems = [
+    // Raw Prisma items returned by findMany
+    const rawItems = [
       {
         id: 'ci-1',
         productId: 'p1',
@@ -44,13 +48,14 @@ describe('getUserCart', () => {
         product: {
           name: 'Product A',
           basePrice: 100,
-          seller: { id: 's1', storeName: 'Store A' },
+          sellerId: 's1',
+          seller: { storeName: 'Store A' },
           images: [{ url: 'http://example.com/img.jpg' }],
         },
         variation: null,
       },
     ];
-    vi.mocked(prisma.cartItem.findMany).mockResolvedValue(mockItems as any);
+    vi.mocked(prisma.cartItem.findMany).mockResolvedValue(rawItems as any);
 
     const cart = await getUserCart('user-1');
     expect(cart).toHaveLength(1);
@@ -161,5 +166,106 @@ describe('removeCartItem', () => {
       userId: 'other',
     } as any);
     await expect(removeCartItem('ci-1', 'user-1')).rejects.toThrow('Cart item not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mergeCart
+// ---------------------------------------------------------------------------
+describe('mergeCart', () => {
+  it('should merge new and existing items in a transaction', async () => {
+    // Raw items that will be returned by findMany inside getUserCart
+    const rawAfterMerge = [
+      {
+        id: 'ci-1',
+        productId: 'p1',
+        variationId: null,
+        quantity: 3,
+        product: {
+          name: 'Product A',
+          basePrice: 100,
+          sellerId: 's1',
+          seller: { storeName: 'Store A' },
+          images: [{ url: 'http://example.com/img.jpg' }],
+        },
+        variation: null,
+      },
+      {
+        id: 'ci-2',
+        productId: 'p2',
+        variationId: null,
+        quantity: 2,
+        product: {
+          name: 'Product B',
+          basePrice: 50,
+          sellerId: 's2',
+          seller: { storeName: 'Store B' },
+          images: [],
+        },
+        variation: null,
+      },
+    ];
+
+    // Expected enriched result after merge (matching the raw items above)
+    const expectedCart = [
+      {
+        id: 'ci-1',
+        productId: 'p1',
+        variationId: null,
+        quantity: 3,
+        productName: 'Product A',
+        productImage: 'http://example.com/img.jpg',
+        price: 100,
+        sellerId: 's1',
+        sellerName: 'Store A',
+        lineTotal: 300,
+      },
+      {
+        id: 'ci-2',
+        productId: 'p2',
+        variationId: null,
+        quantity: 2,
+        productName: 'Product B',
+        productImage: null,
+        price: 50,
+        sellerId: 's2',
+        sellerName: 'Store B',
+        lineTotal: 100,
+      },
+    ];
+
+    // Mock findFirst: first call (p1) returns null (doesn't exist), second call (p2) returns existing item
+    vi.mocked(prisma.cartItem.findFirst).mockResolvedValueOnce(null);
+    vi.mocked(prisma.cartItem.findFirst).mockResolvedValueOnce({
+      id: 'ci-2',
+      userId: 'user-1',
+      productId: 'p2',
+      variationId: null,
+      quantity: 1,
+    } as any);
+
+    // Mock the final getUserCart call (inside mergeCart) to return the raw items
+    vi.mocked(prisma.cartItem.findMany).mockResolvedValue(rawAfterMerge as any);
+
+    const items = [
+      { productId: 'p1', quantity: 3 },
+      { productId: 'p2', quantity: 1 },
+    ];
+
+    const result = await mergeCart('user-1', items);
+
+    // Should have called findFirst twice (once per item)
+    expect(prisma.cartItem.findFirst).toHaveBeenCalledTimes(2);
+    // For the new item, create was called
+    expect(prisma.cartItem.create).toHaveBeenCalledWith({
+      data: { userId: 'user-1', productId: 'p1', variationId: null, quantity: 3 },
+    });
+    // For the existing item, update was called to add quantity (1+1=2)
+    expect(prisma.cartItem.update).toHaveBeenCalledWith({
+      where: { id: 'ci-2' },
+      data: { quantity: 2 },
+    });
+    // Result is the enriched cart from getUserCart
+    expect(result).toEqual(expectedCart);
   });
 });

@@ -3,7 +3,11 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
-import { addToCartSchema, updateCartItemSchema } from '@omnimarket/shared';
+import {
+  addToCartSchema,
+  updateCartItemSchema,
+  mergeCartSchema, // <-- added
+} from '@omnimarket/shared';
 import * as cartController from '../controllers/cart.controller.js';
 
 const router = Router();
@@ -16,6 +20,9 @@ router.get('/', cartController.getCart);
 
 // POST /api/cart/items
 router.post('/items', validate(addToCartSchema), cartController.addItem);
+
+// POST /api/cart/merge                           // <-- new
+router.post('/merge', validate(mergeCartSchema), cartController.mergeCart);
 
 // PATCH /api/cart/items/:itemId
 router.patch('/items/:itemId', validate(updateCartItemSchema), cartController.updateItem);

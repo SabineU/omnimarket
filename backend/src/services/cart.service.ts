@@ -148,3 +148,48 @@ export async function removeCartItem(itemId: string, userId: string): Promise<vo
 
   await prisma.cartItem.delete({ where: { id: itemId } });
 }
+
+/**
+ * Merge a list of guest cart items into the user's persistent cart.
+ * For each item, if the same product/variation already exists, increment quantity;
+ * otherwise create a new row. The operation is performed within a transaction.
+ * Returns the updated cart (enriched list).
+ */
+export async function mergeCart(
+  userId: string,
+  items: { productId: string; variationId?: string; quantity: number }[],
+): Promise<CartItemWithDetails[]> {
+  // Run all inserts/updates in a transaction for atomicity
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      const existing = await tx.cartItem.findFirst({
+        where: {
+          userId,
+          productId: item.productId,
+          variationId: item.variationId ?? null,
+        },
+      });
+
+      if (existing) {
+        // Increment quantity, clamped to max 99
+        const newQty = Math.min(existing.quantity + item.quantity, 99);
+        await tx.cartItem.update({
+          where: { id: existing.id },
+          data: { quantity: newQty },
+        });
+      } else {
+        await tx.cartItem.create({
+          data: {
+            userId,
+            productId: item.productId,
+            variationId: item.variationId ?? null,
+            quantity: item.quantity,
+          },
+        });
+      }
+    }
+  });
+
+  // Return the final cart after merge
+  return getUserCart(userId);
+}

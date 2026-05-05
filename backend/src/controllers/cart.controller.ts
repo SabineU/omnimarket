@@ -86,3 +86,21 @@ export async function removeItem(req: Request, res: Response, next: NextFunction
     next(error);
   }
 }
+
+/**
+ * POST /api/cart/merge
+ * Merge guest cart items into the authenticated user's cart.
+ */
+export async function mergeCart(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getUserId(req);
+    const { items } = req.body; // validated as an array of addToCartSchema
+    const cart = await cartService.mergeCart(userId, items);
+    res.status(200).json({
+      status: 'success',
+      data: { items: cart },
+    });
+  } catch (error) {
+    next(error);
+  }
+}

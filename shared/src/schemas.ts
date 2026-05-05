@@ -124,6 +124,11 @@ export const updateCartItemSchema = z.object({
   quantity: z.number().int().min(1).max(99),
 });
 
+// ---- Cart merge ----
+export const mergeCartSchema = z.object({
+  items: z.array(addToCartSchema).min(1, 'At least one item is required'),
+});
+
 // ---- Order (checkout) ----
 export const checkoutSchema = z.object({
   addressId: z.string().uuid(),
