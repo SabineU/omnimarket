@@ -44,14 +44,14 @@ export const sellerProfileSchema = z.object({
   payoutDetails: z.any().optional(),
 });
 
-// ---- Admin Product Moderation ----
-export const adminProductStatusSchema = z.object({
-  status: z.enum(['DRAFT', 'PENDING', 'ACTIVE', 'INACTIVE']),
-});
-
 // ---- Admin ----
 export const adminApproveSellerSchema = z.object({
   isApproved: z.boolean(),
+});
+
+// ---- Admin Product Moderation ----
+export const adminProductStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'PENDING', 'ACTIVE', 'INACTIVE']),
 });
 
 // ---- Category Administration ----
@@ -116,6 +116,11 @@ export const productUpdateSchema = productCreateSchema.partial();
 export const addToCartSchema = z.object({
   productId: z.string().uuid(),
   variationId: z.string().uuid().optional(),
+  quantity: z.number().int().min(1).max(99),
+});
+
+// ---- Cart (update) ----
+export const updateCartItemSchema = z.object({
   quantity: z.number().int().min(1).max(99),
 });
 

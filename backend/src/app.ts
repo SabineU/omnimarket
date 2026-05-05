@@ -16,6 +16,7 @@ import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import publicProductRoutes from './routes/public-product.routes.js';
+import cartRoutes from './routes/cart.routes.js'; // <-- added
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -87,6 +88,9 @@ app.use('/api/categories', categoryRoutes);
 
 // Public product listing routes
 app.use('/api/products', publicProductRoutes);
+
+// Shopping cart routes (all require authentication)
+app.use('/api/cart', cartRoutes); // <-- added
 
 // ---------- Protected route examples ----------
 
