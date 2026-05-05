@@ -1,0 +1,110 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// backend/src/__tests__/api/category.api.test.ts
+// API contract tests for public category endpoints.
+import { describe, it, expect, beforeAll } from 'vitest';
+import request from 'supertest';
+import app from '../../app.js';
+import { resetTestDatabase } from '../../test-utils/setup.js';
+
+// Reset the test database once before all tests
+beforeAll(async () => {
+  await resetTestDatabase();
+}, 30000);
+
+// Helper: register a user to get an admin token (needed to create test categories)
+async function registerAndGetToken(
+  email: string,
+  password: string,
+  name: string,
+  role: 'CUSTOMER' | 'SELLER' | 'ADMIN' = 'CUSTOMER',
+): Promise<{ token: string; userId: string }> {
+  const res = await request(app)
+    .post('/api/auth/register')
+    .send({ email, password, name, role })
+    .expect(201);
+  return { token: res.body.data.tokens.accessToken, userId: res.body.data.user.id };
+}
+
+describe('Public category endpoints', () => {
+  let adminToken: string;
+
+  // Before the tests, create an admin user and a few categories via the admin API.
+  beforeAll(async () => {
+    // Create an admin user
+    const { userId } = await registerAndGetToken('admin-cat@test.com', 'AdminPass1!', 'Admin Cat');
+    // Promote to ADMIN role directly in the database
+    const { PrismaClient } = await import('@prisma/client');
+    const { PrismaPg } = await import('@prisma/adapter-pg');
+    const { Pool } = await import('pg');
+
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+    const prisma = new PrismaClient({ adapter });
+    await prisma.user.update({ where: { id: userId }, data: { role: 'ADMIN' } });
+    await pool.end();
+    await prisma.$disconnect();
+
+    // Login as admin to get a fresh admin token
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin-cat@test.com', password: 'AdminPass1!' })
+      .expect(200);
+    adminToken = loginRes.body.data.tokens.accessToken;
+
+    // Create a few categories: Electronics (top-level), Laptops (child of Electronics)
+    await request(app)
+      .post('/api/admin/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Electronics', slug: 'electronics' });
+
+    // We need the Electronics ID to create a child, so fetch the category tree first
+    const treeRes = await request(app).get('/api/categories').expect(200);
+    const electronics = treeRes.body.data.categories.find((c: any) => c.slug === 'electronics');
+
+    await request(app)
+      .post('/api/admin/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Laptops',
+        slug: 'laptops',
+        parentId: electronics.id,
+      });
+  });
+
+  // ---- GET /api/categories (tree) ----
+  it('should return the full category tree', async () => {
+    const res = await request(app).get('/api/categories').expect(200);
+
+    expect(res.body.status).toBe('success');
+    expect(Array.isArray(res.body.data.categories)).toBe(true);
+    // At least Electronics should be present
+    expect(res.body.data.categories.length).toBeGreaterThan(0);
+    const electronics = res.body.data.categories.find((c: any) => c.slug === 'electronics');
+    expect(electronics).toBeDefined();
+    // It should have children
+    expect(electronics.children).toBeDefined();
+    expect(electronics.children.length).toBeGreaterThan(0);
+  });
+
+  // ---- GET /api/categories/:slug (single) ----
+  it('should return a category by slug with its children', async () => {
+    const res = await request(app).get('/api/categories/electronics').expect(200);
+
+    expect(res.body.status).toBe('success');
+    expect(res.body.data.category.slug).toBe('electronics');
+    expect(res.body.data.category.children).toBeDefined();
+    expect(res.body.data.category.children.length).toBeGreaterThan(0);
+  });
+
+  it('should return 404 for a non-existent slug', async () => {
+    const res = await request(app).get('/api/categories/nonexistent').expect(404);
+
+    // Our 404 handler returns a generic message, so check for error
+    expect(res.body.message).toBeDefined();
+  });
+
+  // Public endpoints should work without authentication
+  it('should allow access without token', async () => {
+    await request(app).get('/api/categories').expect(200);
+  });
+});
