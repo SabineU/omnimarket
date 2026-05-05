@@ -12,6 +12,7 @@ import sellerRoutes from './routes/seller.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import categoryRoutes from './routes/category.routes.js';
+import productRoutes from './routes/product.routes.js'; // <-- added
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -60,8 +61,11 @@ app.use('/api/users', userRoutes);
 // Address routes
 app.use('/api/users/me/addresses', addressRoutes);
 
-// Seller routes
+// Seller profile routes
 app.use('/api/seller', sellerRoutes);
+
+// Seller product routes
+app.use('/api/seller/products', productRoutes); // <-- added
 
 // Admin routes (seller approval)
 app.use('/api/admin', adminRoutes);

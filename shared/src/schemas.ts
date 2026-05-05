@@ -95,7 +95,21 @@ export const productCreateSchema = z.object({
     )
     .optional()
     .default([]),
+  images: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        altText: z.string().min(1),
+        sortOrder: z.number().int().min(0).optional().default(0),
+      }),
+    )
+    .optional()
+    .default([]),
 });
+
+// Partial schema for updating a product – every field is optional.
+// Variations and images are replaced entirely when specified.
+export const productUpdateSchema = productCreateSchema.partial();
 
 // ---- Cart ----
 export const addToCartSchema = z.object({
