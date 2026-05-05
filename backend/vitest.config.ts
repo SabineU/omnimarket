@@ -21,6 +21,7 @@ export default defineConfig({
         'src/services/admin.service.ts',
         'src/services/category.service.ts',
         'src/services/product.service.ts',
+        'src/services/upload.service.ts',
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],
