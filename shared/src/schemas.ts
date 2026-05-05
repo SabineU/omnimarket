@@ -1,7 +1,5 @@
 // shared/src/schemas.ts
-// Zod schemas for runtime validation. These are the single source of truth for
-// validation rules shared between API (request body) and frontend (form validation).
-
+// Zod schemas for runtime validation.
 import { z } from 'zod';
 import { UserRole } from './enums';
 
@@ -46,6 +44,11 @@ export const sellerProfileSchema = z.object({
   payoutDetails: z.any().optional(),
 });
 
+// ---- Admin Product Moderation ----
+export const adminProductStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'PENDING', 'ACTIVE', 'INACTIVE']),
+});
+
 // ---- Admin ----
 export const adminApproveSellerSchema = z.object({
   isApproved: z.boolean(),
@@ -58,7 +61,7 @@ export const categoryCreateSchema = z.object({
     .string()
     .min(1, 'Slug is required')
     .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only'),
-  parentId: z.string().uuid().nullable().optional(), // null or omitted = top‑level
+  parentId: z.string().uuid().nullable().optional(),
   imageUrl: z.string().url().nullable().optional(),
 });
 
@@ -107,8 +110,6 @@ export const productCreateSchema = z.object({
     .default([]),
 });
 
-// Partial schema for updating a product – every field is optional.
-// Variations and images are replaced entirely when specified.
 export const productUpdateSchema = productCreateSchema.partial();
 
 // ---- Cart ----

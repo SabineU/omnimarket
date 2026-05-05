@@ -11,10 +11,11 @@ import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
+import adminProductRoutes from './routes/adminProduct.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
-import publicProductRoutes from './routes/public-product.routes.js'; // <-- added
+import publicProductRoutes from './routes/public-product.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -78,11 +79,14 @@ app.use('/api/admin', adminRoutes);
 // Admin category management
 app.use('/api/admin/categories', adminCategoryRoutes);
 
+// Admin product moderation
+app.use('/api/admin/products', adminProductRoutes);
+
 // Public category routes
 app.use('/api/categories', categoryRoutes);
 
 // Public product listing routes
-app.use('/api/products', publicProductRoutes); // <-- added
+app.use('/api/products', publicProductRoutes);
 
 // ---------- Protected route examples ----------
 
