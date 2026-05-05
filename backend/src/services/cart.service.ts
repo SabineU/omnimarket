@@ -21,6 +21,52 @@ export interface CartItemWithDetails {
   lineTotal: number; // price * quantity
 }
 
+// ---------------------------------------------------------------------------
+// Custom Errors
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown when a user tries to add more items to the cart than are in stock.
+ */
+export class InsufficientStockError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InsufficientStockError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieve the available stock for a product (and optional variation).
+ * If a variationId is provided, returns that variation's stockQty.
+ * Otherwise, sums the stockQty of all variations. If the product has no
+ * variations, returns 0 (stock is always managed at the variation level
+ * in our schema).
+ */
+async function getAvailableStock(productId: string, variationId?: string): Promise<number> {
+  if (variationId) {
+    const variation = await prisma.productVariation.findUnique({
+      where: { id: variationId },
+      select: { stockQty: true },
+    });
+    return variation?.stockQty ?? 0;
+  }
+
+  // No variation specified – sum of all variations' stock
+  const variations = await prisma.productVariation.findMany({
+    where: { productId },
+    select: { stockQty: true },
+  });
+  return variations.reduce((sum, v) => sum + v.stockQty, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Public Functions
+// ---------------------------------------------------------------------------
+
 /**
  * Retrieve the authenticated user's entire cart,
  * with product, variation, and seller details.
@@ -33,11 +79,9 @@ export async function getUserCart(userId: string): Promise<CartItemWithDetails[]
         select: {
           name: true,
           basePrice: true,
-          sellerId: true, // directly get seller id
+          sellerId: true,
           seller: {
-            select: {
-              storeName: true, // only store name needed
-            },
+            select: { storeName: true },
           },
           images: {
             select: { url: true },
@@ -52,8 +96,6 @@ export async function getUserCart(userId: string): Promise<CartItemWithDetails[]
         },
       },
     },
-    // No orderBy – the generated type doesn’t support createdAt,
-    // and ordering by creation date is not critical for the cart.
   });
 
   return items.map((item) => {
@@ -79,15 +121,20 @@ export async function getUserCart(userId: string): Promise<CartItemWithDetails[]
 
 /**
  * Add an item to the cart.
- * If the same product (and variation, if provided) already exists,
- * the quantity is increased by the new amount (up to 99).
- * Otherwise, a new cart item is created.
+ * Validates that the requested quantity does not exceed available stock.
+ * If the same product/variation already exists, the quantity is increased
+ * (capped at 99), and the combined total is checked against stock.
  */
 export async function addCartItem(
   userId: string,
   data: { productId: string; variationId?: string; quantity: number },
 ): Promise<CartItem> {
-  // Check if the item already exists
+  // ---- Stock validation ----
+  const available = await getAvailableStock(data.productId, data.variationId);
+  if (available === 0) {
+    throw new InsufficientStockError('This item is currently out of stock.');
+  }
+
   const existing = await prisma.cartItem.findFirst({
     where: {
       userId,
@@ -96,16 +143,23 @@ export async function addCartItem(
     },
   });
 
+  let totalQty = data.quantity;
   if (existing) {
-    // Update quantity (clamped to max 99)
-    const newQty = Math.min(existing.quantity + data.quantity, 99);
+    totalQty = Math.min(existing.quantity + data.quantity, 99);
+  }
+
+  if (totalQty > available) {
+    throw new InsufficientStockError(`Only ${available} unit(s) available in stock.`);
+  }
+
+  // ---- Create / Update ----
+  if (existing) {
     return prisma.cartItem.update({
       where: { id: existing.id },
-      data: { quantity: newQty },
+      data: { quantity: totalQty },
     });
   }
 
-  // Create new cart item
   return prisma.cartItem.create({
     data: {
       userId,
@@ -118,6 +172,7 @@ export async function addCartItem(
 
 /**
  * Update the quantity of an existing cart item.
+ * Validates that the new quantity does not exceed available stock.
  * Throws an error if the item does not belong to the user.
  */
 export async function updateCartItemQuantity(
@@ -128,6 +183,12 @@ export async function updateCartItemQuantity(
   const item = await prisma.cartItem.findUnique({ where: { id: itemId } });
   if (!item || item.userId !== userId) {
     throw new Error('Cart item not found');
+  }
+
+  // ---- Stock validation ----
+  const available = await getAvailableStock(item.productId, item.variationId ?? undefined);
+  if (quantity > available) {
+    throw new InsufficientStockError(`Only ${available} unit(s) available in stock.`);
   }
 
   return prisma.cartItem.update({
@@ -151,17 +212,36 @@ export async function removeCartItem(itemId: string, userId: string): Promise<vo
 
 /**
  * Merge a list of guest cart items into the user's persistent cart.
- * For each item, if the same product/variation already exists, increment quantity;
- * otherwise create a new row. The operation is performed within a transaction.
+ * For each item, stock is validated before merging.
+ * The operation is performed within a transaction.
  * Returns the updated cart (enriched list).
  */
 export async function mergeCart(
   userId: string,
   items: { productId: string; variationId?: string; quantity: number }[],
 ): Promise<CartItemWithDetails[]> {
-  // Run all inserts/updates in a transaction for atomicity
   await prisma.$transaction(async (tx) => {
     for (const item of items) {
+      // ---- Stock validation (inside transaction) ----
+      let available: number;
+      if (item.variationId) {
+        const variation = await tx.productVariation.findUnique({
+          where: { id: item.variationId },
+          select: { stockQty: true },
+        });
+        available = variation?.stockQty ?? 0;
+      } else {
+        const variations = await tx.productVariation.findMany({
+          where: { productId: item.productId },
+          select: { stockQty: true },
+        });
+        available = variations.reduce((sum, v) => sum + v.stockQty, 0);
+      }
+
+      if (available === 0) {
+        throw new InsufficientStockError('One of the items is out of stock.');
+      }
+
       const existing = await tx.cartItem.findFirst({
         where: {
           userId,
@@ -170,12 +250,22 @@ export async function mergeCart(
         },
       });
 
+      let totalQty = item.quantity;
       if (existing) {
-        // Increment quantity, clamped to max 99
-        const newQty = Math.min(existing.quantity + item.quantity, 99);
+        totalQty = Math.min(existing.quantity + item.quantity, 99);
+      }
+
+      if (totalQty > available) {
+        throw new InsufficientStockError(
+          `Only ${available} unit(s) available for one of the items.`,
+        );
+      }
+
+      // Create or update
+      if (existing) {
         await tx.cartItem.update({
           where: { id: existing.id },
-          data: { quantity: newQty },
+          data: { quantity: totalQty },
         });
       } else {
         await tx.cartItem.create({
@@ -190,6 +280,6 @@ export async function mergeCart(
     }
   });
 
-  // Return the final cart after merge
+  // Return the final cart state
   return getUserCart(userId);
 }

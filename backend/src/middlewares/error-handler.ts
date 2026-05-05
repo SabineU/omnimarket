@@ -1,5 +1,4 @@
 // backend/src/middlewares/error-handler.ts
-// Global Express error handling middleware.
 import type { Request, Response, NextFunction } from 'express';
 import {
   UserExistsError,
@@ -9,6 +8,7 @@ import {
   TokenInvalidError,
 } from '../services/auth.service.js';
 import { SellerNotFoundError } from '../services/admin.service.js';
+import { InsufficientStockError } from '../services/cart.service.js'; // <-- added
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof UserExistsError) {
@@ -23,6 +23,8 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res.status(401).json({ status: 'error', message: err.message });
   } else if (err instanceof SellerNotFoundError) {
     res.status(404).json({ status: 'error', message: err.message });
+  } else if (err instanceof InsufficientStockError) {
+    res.status(409).json({ status: 'error', message: err.message }); // <-- added
   } else {
     console.error('Unhandled error:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
