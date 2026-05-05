@@ -1,16 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// backend/src/__tests__/admin.service.test.ts
-// Unit tests for the admin service.
+// backend/src/__tests__/services/admin.service.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { approveSeller, SellerNotFoundError } from '../../services/admin.service.js';
+import {
+  approveSeller,
+  SellerNotFoundError,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from '../../services/admin.service.js';
 
-// Mock the database module
+// Mock the database module – we need to add `category` mock methods.
 vi.mock('../../db.js', () => {
   return {
     prisma: {
       sellerProfile: {
         findUnique: vi.fn(),
         update: vi.fn(),
+      },
+      category: {
+        create: vi.fn(),
+        findUniqueOrThrow: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
       },
     },
   };
@@ -22,17 +33,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// =============================================================================
+// Seller Approval (existing)
+// =============================================================================
 describe('approveSeller', () => {
   it('should approve a seller when profile exists and user is a seller', async () => {
-    const mockProfile = {
-      userId: 'seller-1',
-      isApproved: false,
-      user: { role: 'SELLER' },
-    } as any;
+    const mockProfile = { userId: 'seller-1', isApproved: false, user: { role: 'SELLER' } } as any;
     vi.mocked(prisma.sellerProfile.findUnique).mockResolvedValue(mockProfile);
     const updatedProfile = { ...mockProfile, isApproved: true };
     vi.mocked(prisma.sellerProfile.update).mockResolvedValue(updatedProfile as any);
-
     const result = await approveSeller('seller-1', true);
     expect(result.isApproved).toBe(true);
     expect(prisma.sellerProfile.update).toHaveBeenCalledWith({
@@ -42,15 +51,10 @@ describe('approveSeller', () => {
   });
 
   it('should reject a seller (isApproved = false)', async () => {
-    const mockProfile = {
-      userId: 'seller-2',
-      isApproved: true,
-      user: { role: 'SELLER' },
-    } as any;
+    const mockProfile = { userId: 'seller-2', isApproved: true, user: { role: 'SELLER' } } as any;
     vi.mocked(prisma.sellerProfile.findUnique).mockResolvedValue(mockProfile);
     const updatedProfile = { ...mockProfile, isApproved: false };
     vi.mocked(prisma.sellerProfile.update).mockResolvedValue(updatedProfile as any);
-
     const result = await approveSeller('seller-2', false);
     expect(result.isApproved).toBe(false);
   });
@@ -60,13 +64,62 @@ describe('approveSeller', () => {
     await expect(approveSeller('nonexistent', true)).rejects.toThrow(SellerNotFoundError);
   });
 
-  it('should throw if user is not a seller (profile exists but role wrong)', async () => {
-    const mockProfile = {
-      userId: 'user-1',
-      isApproved: false,
-      user: { role: 'CUSTOMER' },
-    } as any;
+  it('should throw if user is not a seller', async () => {
+    const mockProfile = { userId: 'user-1', isApproved: false, user: { role: 'CUSTOMER' } } as any;
     vi.mocked(prisma.sellerProfile.findUnique).mockResolvedValue(mockProfile);
     await expect(approveSeller('user-1', true)).rejects.toThrow('User is not a seller');
+  });
+});
+
+// =============================================================================
+// Category CRUD (new)
+// =============================================================================
+describe('createCategory', () => {
+  it('should create a category and return it', async () => {
+    const input = { name: 'Books', slug: 'books', parentId: null, imageUrl: null };
+    const created = { id: 'cat-1', ...input } as any;
+    vi.mocked(prisma.category.create).mockResolvedValue(created);
+
+    const result = await createCategory(input);
+    expect(result.slug).toBe('books');
+    expect(prisma.category.create).toHaveBeenCalledWith({
+      data: { name: 'Books', slug: 'books', parentId: null, imageUrl: null },
+    });
+  });
+});
+
+describe('updateCategory', () => {
+  it('should update a category', async () => {
+    const existing = { id: 'cat-1', name: 'Books', slug: 'books' };
+    vi.mocked(prisma.category.findUniqueOrThrow).mockResolvedValue(existing as any);
+    const updated = { ...existing, name: 'Updated Books' };
+    vi.mocked(prisma.category.update).mockResolvedValue(updated as any);
+
+    const result = await updateCategory('cat-1', { name: 'Updated Books' });
+    expect(result.name).toBe('Updated Books');
+    expect(prisma.category.update).toHaveBeenCalledWith({
+      where: { id: 'cat-1' },
+      data: { name: 'Updated Books' },
+    });
+  });
+
+  it('should throw if category not found', async () => {
+    vi.mocked(prisma.category.findUniqueOrThrow).mockRejectedValue(new Error('Not found'));
+    await expect(updateCategory('bad-id', { name: 'New' })).rejects.toThrow('Not found');
+  });
+});
+
+describe('deleteCategory', () => {
+  it('should delete a category', async () => {
+    vi.mocked(prisma.category.findUniqueOrThrow).mockResolvedValue({ id: 'cat-1' } as any);
+    vi.mocked(prisma.category.delete).mockResolvedValue({} as any);
+
+    await expect(deleteCategory('cat-1')).resolves.toBeUndefined();
+    expect(prisma.category.delete).toHaveBeenCalledWith({ where: { id: 'cat-1' } });
+  });
+
+  it('should throw if category not found', async () => {
+    vi.mocked(prisma.category.findUniqueOrThrow).mockRejectedValue(new Error('Not found'));
+    await expect(deleteCategory('bad-id')).rejects.toThrow('Not found');
   });
 });

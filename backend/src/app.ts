@@ -10,7 +10,8 @@ import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
 import adminRoutes from './routes/admin.routes.js';
-import categoryRoutes from './routes/category.routes.js'; // <-- added
+import adminCategoryRoutes from './routes/adminCategory.routes.js';
+import categoryRoutes from './routes/category.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -62,10 +63,13 @@ app.use('/api/users/me/addresses', addressRoutes);
 // Seller routes
 app.use('/api/seller', sellerRoutes);
 
-// Admin routes
+// Admin routes (seller approval)
 app.use('/api/admin', adminRoutes);
 
-// Category routes – public, no authentication
+// Admin category management
+app.use('/api/admin/categories', adminCategoryRoutes);
+
+// Public category routes
 app.use('/api/categories', categoryRoutes);
 
 // ---------- Protected route examples ----------

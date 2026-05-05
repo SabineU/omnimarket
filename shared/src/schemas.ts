@@ -15,7 +15,6 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  //role: z.enum([UserRole.CUSTOMER, UserRole.SELLER]).optional().default(UserRole.CUSTOMER),
   role: z.enum([UserRole.CUSTOMER, UserRole.SELLER]).optional().default(UserRole.CUSTOMER),
 });
 
@@ -37,20 +36,33 @@ export const resetPasswordSchema = z.object({
 // ---- User Profile ----
 export const updateProfileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
-  avatarUrl: z.string().url().nullable().optional(), // nullable to allow clearing the avatar
+  avatarUrl: z.string().url().nullable().optional(),
 });
 
 // ---- Seller Profile ----
 export const sellerProfileSchema = z.object({
   storeName: z.string().min(2, 'Store name must be at least 2 characters'),
   description: z.string().optional(),
-  payoutDetails: z.any().optional(), // JSON object for bank details; kept flexible
+  payoutDetails: z.any().optional(),
 });
 
 // ---- Admin ----
 export const adminApproveSellerSchema = z.object({
   isApproved: z.boolean(),
 });
+
+// ---- Category Administration ----
+export const categoryCreateSchema = z.object({
+  name: z.string().min(1, 'Category name is required'),
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only'),
+  parentId: z.string().uuid().nullable().optional(), // null or omitted = top‑level
+  imageUrl: z.string().url().nullable().optional(),
+});
+
+export const categoryUpdateSchema = categoryCreateSchema.partial();
 
 // ---- Address ----
 export const addressSchema = z.object({
@@ -62,7 +74,6 @@ export const addressSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
-// Partial schema for updating an address – every field is optional
 export const addressUpdateSchema = addressSchema.partial();
 
 // ---- Product ----
@@ -97,7 +108,6 @@ export const addToCartSchema = z.object({
 export const checkoutSchema = z.object({
   addressId: z.string().uuid(),
   couponCode: z.string().optional(),
-  // paymentMethodId will be provided after Stripe client-side creation
 });
 
 // ---- Review ----
