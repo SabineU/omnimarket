@@ -10,7 +10,7 @@ import {
 import { SellerNotFoundError } from '../services/admin.service.js';
 import { InsufficientStockError } from '../services/cart.service.js';
 import { CouponValidationError } from '../services/coupon.service.js';
-import { CheckoutValidationError } from '../services/checkout.service.js';
+import { CheckoutValidationError, PaymentNotFoundError } from '../services/checkout.service.js';
 import Stripe from 'stripe';
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
@@ -36,6 +36,8 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res
       .status(402)
       .json({ status: 'error', message: 'Payment processing error. Please try again.' });
+  } else if (err instanceof PaymentNotFoundError) {
+    res.status(404).json({ status: 'error', message: err.message });
   } else {
     console.error('Unhandled error:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });

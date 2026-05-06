@@ -1,12 +1,17 @@
 // backend/src/services/checkout.service.ts
 // Pre‑checkout validation service.
 // Validates cart, stock, address, and coupon, and returns a breakdown
-// grouped by seller.  Also creates Stripe PaymentIntents.
+// grouped by seller.  Also creates Stripe PaymentIntents and finalises orders.
 
 import { prisma } from '../db.js';
 import { getUserCart, InsufficientStockError } from './cart.service.js';
 import { calculateDiscount } from './coupon.service.js';
 import { stripe } from '../config/stripe.js';
+import type { Order } from '@prisma/client'; // <-- new import
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 /** A single line item in the checkout preview */
 export interface CheckoutLineItem {
@@ -47,6 +52,18 @@ export class CheckoutValidationError extends Error {
     this.name = 'CheckoutValidationError';
   }
 }
+
+/** Custom error when the payment intent is missing or already used */
+export class PaymentNotFoundError extends Error {
+  constructor(message = 'Payment not found or already processed') {
+    super(message);
+    this.name = 'PaymentNotFoundError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Checkout validation
+// ---------------------------------------------------------------------------
 
 /**
  * Validate a checkout request without creating an order.
@@ -208,4 +225,109 @@ export async function createPaymentIntent(
     clientSecret,
     paymentId: payment.id,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Checkout Completion (finalise after payment)
+// ---------------------------------------------------------------------------
+
+/**
+ * Finalise the checkout after the payment has been confirmed.
+ * @param userId                  authenticated user's ID
+ * @param stripePaymentIntentId   the Stripe PaymentIntent ID (from frontend)
+ * @returns the created Order object (without payment details)
+ */
+export async function completeCheckout(
+  userId: string,
+  stripePaymentIntentId: string,
+): Promise<{ order: Order }> {
+  // 1. Find the pending payment. It must be in PENDING state.
+  const payment = await prisma.payment.findUnique({
+    where: { stripePaymentIntentId },
+  });
+
+  if (!payment || payment.status !== 'PENDING') {
+    throw new PaymentNotFoundError();
+  }
+
+  // 2. Retrieve the PaymentIntent from Stripe to get the original metadata
+  let metadata;
+  try {
+    const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
+    metadata = paymentIntent.metadata;
+  } catch {
+    throw new PaymentNotFoundError('Unable to verify payment');
+  }
+
+  // 3. Extract the parameters we stored during creation
+  const addressId = metadata.addressId;
+  const couponCode = metadata.couponCode || undefined;
+  const metadataUserId = metadata.userId;
+
+  // 4. Ensure the payment belongs to the correct user
+  if (metadataUserId !== userId) {
+    throw new PaymentNotFoundError();
+  }
+
+  // 5. Re‑validate the checkout (address, cart, stock, coupon)
+  const preview = await validateCheckout(userId, addressId, couponCode);
+
+  // 6. Perform all operations in a database transaction
+  const order = await prisma.$transaction(async (tx) => {
+    // --- 6a. Decrement stock for each item ---
+    for (const item of preview.items) {
+      if (item.variationId) {
+        await tx.productVariation.update({
+          where: { id: item.variationId },
+          data: { stockQty: { decrement: item.quantity } },
+        });
+      }
+      // Items without variation are ignored for stock tracking
+    }
+
+    // --- 6b. Create the Order ---
+    const order = await tx.order.create({
+      data: {
+        customerId: userId,
+        status: 'CONFIRMED',
+        shippingAddressId: addressId,
+        totalAmount: payment.amount,
+      },
+    });
+
+    // --- 6c. Create OrderItems ---
+    const orderItemsData = preview.items.map((item) => ({
+      orderId: order.id,
+      productId: item.productId,
+      variationId: item.variationId,
+      sellerId: item.sellerId,
+      quantity: item.quantity,
+      priceAtTime: item.unitPrice,
+    }));
+    await tx.orderItem.createMany({ data: orderItemsData });
+
+    // --- 6d. Link the payment to the order and mark it as SUCCEEDED ---
+    await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        orderId: order.id,
+        status: 'SUCCEEDED',
+      },
+    });
+
+    // --- 6e. Increment coupon usage if a valid coupon was applied ---
+    if (preview.coupon) {
+      await tx.coupon.updateMany({
+        where: { code: preview.coupon.code },
+        data: { usedCount: { increment: 1 } },
+      });
+    }
+
+    // --- 6f. Clear the user's cart ---
+    await tx.cartItem.deleteMany({ where: { userId } });
+
+    return order;
+  });
+
+  return { order };
 }

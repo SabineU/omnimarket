@@ -4,63 +4,68 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   validateCheckout,
   createPaymentIntent,
+  completeCheckout,
   CheckoutValidationError,
+  PaymentNotFoundError,
 } from '../../services/checkout.service.js';
 import { InsufficientStockError } from '../../services/cart.service.js';
 
 // ---------------------------------------------------------------------------
-// Mock the database module (address, productVariation, and payment)
+// Mock the database module – now includes all models used by completeCheckout
 // ---------------------------------------------------------------------------
 vi.mock('../../db.js', () => {
-  return {
-    prisma: {
-      address: {
-        findUnique: vi.fn(),
-      },
-      productVariation: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-      },
-      payment: {
-        create: vi.fn(),
-      },
+  const mockPrisma = {
+    address: { findUnique: vi.fn() },
+    productVariation: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
     },
+    payment: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    order: { create: vi.fn() },
+    orderItem: { createMany: vi.fn() },
+    coupon: { updateMany: vi.fn() },
+    cartItem: { deleteMany: vi.fn() },
+    $transaction: vi.fn((callback: any) => callback(mockPrisma)),
   };
+  return { prisma: mockPrisma };
 });
 
 // ---------------------------------------------------------------------------
 // Mock the cart service (getUserCart)
 // ---------------------------------------------------------------------------
-vi.mock('../../services/cart.service.js', () => {
-  return {
-    getUserCart: vi.fn(),
-    InsufficientStockError: class extends Error {
-      constructor(msg: string) {
-        super(msg);
-        this.name = 'InsufficientStockError';
-      }
-    },
-  };
-});
+vi.mock('../../services/cart.service.js', () => ({
+  getUserCart: vi.fn(),
+  InsufficientStockError: class extends Error {
+    constructor(msg: string) {
+      super(msg);
+      this.name = 'InsufficientStockError';
+    }
+  },
+}));
 
 // ---------------------------------------------------------------------------
 // Mock the coupon service (calculateDiscount)
 // ---------------------------------------------------------------------------
-vi.mock('../../services/coupon.service.js', () => {
-  return {
-    calculateDiscount: vi.fn(),
-  };
-});
+vi.mock('../../services/coupon.service.js', () => ({
+  calculateDiscount: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Mock the Stripe configuration module
 // ---------------------------------------------------------------------------
 vi.mock('../../config/stripe.js', () => {
   const mockCreate = vi.fn();
+  const mockRetrieve = vi.fn();
   return {
     stripe: {
       paymentIntents: {
         create: mockCreate,
+        retrieve: mockRetrieve,
       },
     },
   };
@@ -76,15 +81,13 @@ beforeEach(() => {
 });
 
 // =============================================================================
-// HELPERS – create reusable mock objects for shared test data
+// HELPERS
 // =============================================================================
 
-/** Build a mock cart item.  `lineTotal` is automatically `price * quantity` unless overridden. */
 function mockCartItem(overrides: any = {}): any {
   const price = overrides.price ?? 50;
   const quantity = overrides.quantity ?? 2;
   const lineTotal = overrides.lineTotal ?? price * quantity;
-
   return {
     id: 'ci-1',
     productId: 'p1',
@@ -100,26 +103,21 @@ function mockCartItem(overrides: any = {}): any {
   };
 }
 
-/** Build a mock address that belongs to the given userId */
 function mockAddress(userId: string): any {
   return { id: 'addr-1', userId, street: '123 Main' };
 }
 
-/** Set up the stock mocks to return a given available quantity */
 function mockStock(available: number): void {
   vi.mocked(prisma.productVariation.findMany).mockResolvedValue([{ stockQty: available }] as any);
-  vi.mocked(prisma.productVariation.findUnique).mockResolvedValue({
-    stockQty: available,
-  } as any);
+  vi.mocked(prisma.productVariation.findUnique).mockResolvedValue({ stockQty: available } as any);
 }
 
 // =============================================================================
-// TESTS FOR validateCheckout (existing, unchanged)
+// validateCheckout (unchanged)
 // =============================================================================
 describe('validateCheckout', () => {
   it('should throw if address does not exist', async () => {
     vi.mocked(prisma.address.findUnique).mockResolvedValue(null);
-
     await expect(validateCheckout('user-1', 'bad-addr')).rejects.toThrow(CheckoutValidationError);
   });
 
@@ -128,22 +126,19 @@ describe('validateCheckout', () => {
       id: 'addr-1',
       userId: 'other',
     } as any);
-
     await expect(validateCheckout('user-1', 'addr-1')).rejects.toThrow(CheckoutValidationError);
   });
 
   it('should throw if cart is empty', async () => {
     vi.mocked(prisma.address.findUnique).mockResolvedValue(mockAddress('user-1') as any);
     vi.mocked(getUserCart).mockResolvedValue([]);
-
     await expect(validateCheckout('user-1', 'addr-1')).rejects.toThrow(CheckoutValidationError);
   });
 
   it('should throw InsufficientStockError if quantity exceeds stock', async () => {
     vi.mocked(prisma.address.findUnique).mockResolvedValue(mockAddress('user-1') as any);
     vi.mocked(getUserCart).mockResolvedValue([mockCartItem({ quantity: 5 })]);
-    mockStock(3); // only 3 in stock
-
+    mockStock(3);
     await expect(validateCheckout('user-1', 'addr-1')).rejects.toThrow(InsufficientStockError);
   });
 
@@ -154,7 +149,6 @@ describe('validateCheckout', () => {
     vi.mocked(calculateDiscount).mockResolvedValue({ discountAmount: 0 });
 
     const preview = await validateCheckout('user-1', 'addr-1');
-
     expect(preview.subtotal).toBe(100);
     expect(preview.discountAmount).toBe(0);
     expect(preview.total).toBe(100);
@@ -204,58 +198,39 @@ describe('validateCheckout', () => {
 });
 
 // =============================================================================
-// TESTS FOR createPaymentIntent (new)
+// createPaymentIntent (unchanged)
 // =============================================================================
 describe('createPaymentIntent', () => {
   it('should create a PaymentIntent and a PENDING payment record', async () => {
-    // Arrange: one item with price 50, quantity 1 => subtotal 50
     vi.mocked(prisma.address.findUnique).mockResolvedValue(mockAddress('user-1') as any);
     vi.mocked(getUserCart).mockResolvedValue([mockCartItem({ quantity: 1 })]);
     mockStock(5);
     vi.mocked(calculateDiscount).mockResolvedValue({ discountAmount: 0 });
 
-    // Mock Stripe PaymentIntent creation
-    const mockPaymentIntent = {
+    vi.mocked(stripe.paymentIntents.create).mockResolvedValue({
       id: 'pi_123',
       client_secret: 'secret_123',
-    };
-    vi.mocked(stripe.paymentIntents.create).mockResolvedValue(mockPaymentIntent as any);
-
-    // Mock the DB payment record
-    const mockPaymentRecord = {
+    } as any);
+    vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pmt-1',
       stripePaymentIntentId: 'pi_123',
       amount: 50,
       status: 'PENDING',
-    };
-    vi.mocked(prisma.payment.create).mockResolvedValue(mockPaymentRecord as any);
+    } as any);
 
-    // Act
     const result = await createPaymentIntent('user-1', 'addr-1');
-
-    // Assert
     expect(result.clientSecret).toBe('secret_123');
     expect(result.paymentId).toBe('pmt-1');
 
-    // Verify Stripe was called with total in cents (50 * 100 = 5000)
     expect(stripe.paymentIntents.create).toHaveBeenCalledWith(
       expect.objectContaining({
         amount: 5000,
         currency: 'usd',
-        metadata: {
-          userId: 'user-1',
-          addressId: 'addr-1',
-          couponCode: '',
-        },
+        metadata: { userId: 'user-1', addressId: 'addr-1', couponCode: '' },
       }),
     );
-
     expect(prisma.payment.create).toHaveBeenCalledWith({
-      data: {
-        stripePaymentIntentId: 'pi_123',
-        amount: 50,
-        status: 'PENDING',
-      },
+      data: { stripePaymentIntentId: 'pi_123', amount: 50, status: 'PENDING' },
     });
   });
 
@@ -280,20 +255,131 @@ describe('createPaymentIntent', () => {
     vi.mocked(prisma.payment.create).mockResolvedValue({ id: 'pmt-2' } as any);
 
     await createPaymentIntent('user-1', 'addr-1', 'SAVE5');
-
     expect(stripe.paymentIntents.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          couponCode: 'SAVE5',
-        }),
-      }),
+      expect.objectContaining({ metadata: expect.objectContaining({ couponCode: 'SAVE5' }) }),
     );
   });
 
   it('should throw if validation fails (e.g., empty cart)', async () => {
     vi.mocked(prisma.address.findUnique).mockResolvedValue(mockAddress('user-1') as any);
     vi.mocked(getUserCart).mockResolvedValue([]);
-
     await expect(createPaymentIntent('user-1', 'addr-1')).rejects.toThrow(CheckoutValidationError);
+  });
+});
+
+// =============================================================================
+// completeCheckout (NEW)
+// =============================================================================
+describe('completeCheckout', () => {
+  function mockPaymentAndIntent(
+    paymentIntentId: string,
+    metadata: { userId: string; addressId: string; couponCode?: string },
+  ): void {
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+      id: 'pmt-1',
+      orderId: null,
+      stripePaymentIntentId: paymentIntentId,
+      amount: 100,
+      status: 'PENDING',
+    } as any);
+
+    vi.mocked(stripe.paymentIntents.retrieve).mockResolvedValue({
+      id: paymentIntentId,
+      metadata,
+    } as any);
+  }
+
+  it('should finalize the order and return it', async () => {
+    const metadata = { userId: 'user-1', addressId: 'addr-1', couponCode: 'SAVE10' };
+    mockPaymentAndIntent('pi_123', metadata);
+
+    vi.mocked(prisma.address.findUnique).mockResolvedValue(mockAddress('user-1') as any);
+    vi.mocked(getUserCart).mockResolvedValue([mockCartItem({ quantity: 1, variationId: 'var-1' })]);
+    mockStock(10);
+    vi.mocked(calculateDiscount).mockResolvedValue({
+      discountAmount: 10,
+      coupon: {
+        code: 'SAVE10',
+        discountType: 'PERCENTAGE',
+        discountValue: 10,
+        minCartAmount: null,
+      },
+    });
+
+    vi.mocked(prisma.productVariation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.order.create).mockResolvedValue({
+      id: 'order-1',
+      customerId: 'user-1',
+      status: 'CONFIRMED',
+      totalAmount: 100,
+    } as any);
+    vi.mocked(prisma.orderItem.createMany).mockResolvedValue({ count: 1 } as any);
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.coupon.updateMany).mockResolvedValue({ count: 1 } as any);
+    vi.mocked(prisma.cartItem.deleteMany).mockResolvedValue({ count: 1 } as any);
+
+    const result = await completeCheckout('user-1', 'pi_123');
+    expect(result.order).toBeDefined();
+    expect(result.order.id).toBe('order-1');
+
+    expect(prisma.productVariation.update).toHaveBeenCalledWith({
+      where: { id: 'var-1' },
+      data: { stockQty: { decrement: 1 } },
+    });
+    expect(prisma.order.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'user-1',
+        status: 'CONFIRMED',
+        shippingAddressId: 'addr-1',
+        totalAmount: 100,
+      },
+    });
+    expect(prisma.orderItem.createMany).toHaveBeenCalled();
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: { id: 'pmt-1' },
+      data: { orderId: 'order-1', status: 'SUCCEEDED' },
+    });
+    expect(prisma.coupon.updateMany).toHaveBeenCalledWith({
+      where: { code: 'SAVE10' },
+      data: { usedCount: { increment: 1 } },
+    });
+    expect(prisma.cartItem.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+  });
+
+  it('should throw PaymentNotFoundError if payment status is not PENDING', async () => {
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+      id: 'pmt-2',
+      stripePaymentIntentId: 'pi_used',
+      status: 'SUCCEEDED',
+    } as any);
+    await expect(completeCheckout('user-1', 'pi_used')).rejects.toThrow(PaymentNotFoundError);
+  });
+
+  it('should throw PaymentNotFoundError if payment is not found', async () => {
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue(null);
+    await expect(completeCheckout('user-1', 'pi_missing')).rejects.toThrow(PaymentNotFoundError);
+  });
+
+  it('should throw PaymentNotFoundError if Stripe retrieval fails', async () => {
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+      id: 'pmt-3',
+      stripePaymentIntentId: 'pi_fail',
+      status: 'PENDING',
+    } as any);
+    vi.mocked(stripe.paymentIntents.retrieve).mockRejectedValue(new Error('Stripe error'));
+    await expect(completeCheckout('user-1', 'pi_fail')).rejects.toThrow(PaymentNotFoundError);
+  });
+
+  it('should throw if metadata userId does not match the requesting user', async () => {
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+      id: 'pmt-4',
+      stripePaymentIntentId: 'pi_wrong',
+      status: 'PENDING',
+    } as any);
+    vi.mocked(stripe.paymentIntents.retrieve).mockResolvedValue({
+      id: 'pi_wrong',
+      metadata: { userId: 'other-user', addressId: 'addr-1' },
+    } as any);
+    await expect(completeCheckout('user-1', 'pi_wrong')).rejects.toThrow(PaymentNotFoundError);
   });
 });

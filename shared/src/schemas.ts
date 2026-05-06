@@ -140,6 +140,11 @@ export const checkoutSchema = z.object({
   couponCode: z.string().optional(),
 });
 
+// ---- Checkout complete (after payment) ----
+export const completeCheckoutSchema = z.object({
+  stripePaymentIntentId: z.string().min(1, 'Payment intent ID is required'),
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
