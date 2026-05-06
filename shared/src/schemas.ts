@@ -129,6 +129,11 @@ export const mergeCartSchema = z.object({
   items: z.array(addToCartSchema).min(1, 'At least one item is required'),
 });
 
+// ---- Coupon validation ----
+export const validateCouponSchema = z.object({
+  code: z.string().min(1, 'Coupon code is required'),
+});
+
 // ---- Order (checkout) ----
 export const checkoutSchema = z.object({
   addressId: z.string().uuid(),
