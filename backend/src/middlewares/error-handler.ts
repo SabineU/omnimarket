@@ -10,6 +10,7 @@ import {
 import { SellerNotFoundError } from '../services/admin.service.js';
 import { InsufficientStockError } from '../services/cart.service.js';
 import { CouponValidationError } from '../services/coupon.service.js';
+import { CheckoutValidationError } from '../services/checkout.service.js'; // <-- added
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof UserExistsError) {
@@ -28,6 +29,8 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res.status(409).json({ status: 'error', message: err.message });
   } else if (err instanceof CouponValidationError) {
     res.status(400).json({ status: 'error', message: err.message });
+  } else if (err instanceof CheckoutValidationError) {
+    res.status(400).json({ status: 'error', message: err.message }); // <-- added
   } else {
     console.error('Unhandled error:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });

@@ -17,7 +17,8 @@ import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import publicProductRoutes from './routes/public-product.routes.js';
 import cartRoutes from './routes/cart.routes.js';
-import couponRoutes from './routes/coupon.routes.js'; // <-- added
+import couponRoutes from './routes/coupon.routes.js';
+import checkoutRoutes from './routes/checkout.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -95,6 +96,9 @@ app.use('/api/cart', cartRoutes);
 
 // Coupon validation (mounted under /api/cart for logical grouping)
 app.use('/api/cart', couponRoutes);
+
+// Checkout routes (require authentication)
+app.use('/api/checkout', checkoutRoutes);
 
 // ---------- Protected route examples ----------
 

@@ -25,6 +25,7 @@ export default defineConfig({
         'src/services/public-product.service.ts',
         'src/services/cart.service.ts',
         'src/services/coupon.service.ts',
+        'src/services/checkout.service.ts',
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],

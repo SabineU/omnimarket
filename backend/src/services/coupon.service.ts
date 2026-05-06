@@ -53,3 +53,43 @@ export async function validateCoupon(code: string): Promise<ValidCoupon> {
     minCartAmount: coupon.minCartAmount ? Number(coupon.minCartAmount) : null,
   };
 }
+
+/**
+ * Calculate the discount amount for a given cart subtotal and coupon code.
+ * If the coupon is invalid, expired, or minimum not met, returns 0.
+ * Returns the discount amount AND the coupon info if valid.
+ */
+export async function calculateDiscount(
+  cartTotal: number,
+  code?: string,
+): Promise<{
+  discountAmount: number;
+  coupon?: ValidCoupon;
+}> {
+  if (!code) {
+    return { discountAmount: 0 };
+  }
+
+  try {
+    const coupon = await validateCoupon(code);
+
+    // Check minimum cart amount
+    if (coupon.minCartAmount !== null && cartTotal < coupon.minCartAmount) {
+      return { discountAmount: 0 };
+    }
+
+    let discountAmount = 0;
+    if (coupon.discountType === 'PERCENTAGE') {
+      discountAmount = (cartTotal * coupon.discountValue) / 100;
+    } else {
+      discountAmount = coupon.discountValue;
+    }
+
+    // Discount cannot exceed cart total
+    discountAmount = Math.min(discountAmount, cartTotal);
+
+    return { discountAmount, coupon };
+  } catch {
+    return { discountAmount: 0 };
+  }
+}
