@@ -20,6 +20,7 @@ import cartRoutes from './routes/cart.routes.js';
 import couponRoutes from './routes/coupon.routes.js';
 import checkoutRoutes from './routes/checkout.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import webhookRoutes from './routes/webhook.routes.js'; // <-- added
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -30,7 +31,7 @@ import { authorize } from './middlewares/rbac.js';
 const app = express();
 
 // ---------------------------------------------------------------------------
-// Global Middleware (runs on every request)
+// Global Middleware – order matters!
 // ---------------------------------------------------------------------------
 
 // Helmet adds security-related HTTP headers
@@ -44,11 +45,18 @@ app.use(
   }),
 );
 
-// Parse incoming JSON request bodies
-app.use(express.json());
-
 // Morgan logs requests to the console
 app.use(morgan('dev'));
+
+// ---------------------------------------------------------------------------
+// Stripe webhook route – must be BEFORE the JSON body parser!
+// Stripe sends the request body as raw JSON, and we need the raw bytes
+// to verify the webhook signature.
+// ---------------------------------------------------------------------------
+app.use('/api/webhooks', webhookRoutes);
+
+// Parse incoming JSON request bodies (for all other routes)
+app.use(express.json());
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -98,10 +106,8 @@ app.use('/api/cart', cartRoutes);
 // Coupon validation (mounted under /api/cart for logical grouping)
 app.use('/api/cart', couponRoutes);
 
-// Checkout routes (require authentication)
+// Checkout validation and payment
 app.use('/api/checkout', checkoutRoutes);
-
-// Payment routes (require authentication)
 app.use('/api/checkout', paymentRoutes);
 
 // ---------- Protected route examples ----------
@@ -112,17 +118,11 @@ app.get('/api/me', authenticate, (req: Request, res: Response) => {
     res.status(500).json({ message: 'Internal error: user not attached to request' });
     return;
   }
-  res.json({
-    status: 'success',
-    data: { userId, role },
-  });
+  res.json({ status: 'success', data: { userId, role } });
 });
 
 app.get('/api/admin', authenticate, authorize('ADMIN'), (_req: Request, res: Response) => {
-  res.json({
-    status: 'success',
-    message: 'Welcome, Admin!',
-  });
+  res.json({ status: 'success', message: 'Welcome, Admin!' });
 });
 
 // ---------------------------------------------------------------------------
