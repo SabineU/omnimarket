@@ -1,11 +1,12 @@
 // backend/src/services/checkout.service.ts
 // Pre‑checkout validation service.
 // Validates cart, stock, address, and coupon, and returns a breakdown
-// grouped by seller.
+// grouped by seller.  Also creates Stripe PaymentIntents.
 
 import { prisma } from '../db.js';
 import { getUserCart, InsufficientStockError } from './cart.service.js';
 import { calculateDiscount } from './coupon.service.js';
+import { stripe } from '../config/stripe.js';
 
 /** A single line item in the checkout preview */
 export interface CheckoutLineItem {
@@ -151,4 +152,60 @@ export async function validateCheckout(
   }
 
   return preview;
+}
+
+// ---------------------------------------------------------------------------
+// Stripe Payment Intent creation
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a Stripe PaymentIntent and a pending Payment record.
+ * Re‑validates the checkout to prevent amount tampering.
+ * @param userId       authenticated user's ID
+ * @param addressId    chosen shipping address ID
+ * @param couponCode   optional coupon code
+ * @returns The client secret (for the frontend) and the payment ID.
+ */
+export async function createPaymentIntent(
+  userId: string,
+  addressId: string,
+  couponCode?: string,
+): Promise<{ clientSecret: string; paymentId: string }> {
+  // 1. Re‑validate the checkout to get the correct amount
+  const preview = await validateCheckout(userId, addressId, couponCode);
+
+  // 2. Stripe expects amounts in the smallest currency unit (cents)
+  const amountInCents = Math.round(preview.total * 100);
+
+  // 3. Create a PaymentIntent via Stripe
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: 'usd',
+    metadata: {
+      userId,
+      addressId,
+      couponCode: couponCode ?? '',
+    },
+  });
+
+  // 4. Save a PENDING payment record in our database
+  //    Note: orderId will be linked after the order is created (Phase 7.3).
+  const payment = await prisma.payment.create({
+    data: {
+      stripePaymentIntentId: paymentIntent.id,
+      amount: preview.total,
+      status: 'PENDING',
+    },
+  });
+
+  // Stripe guarantees a client_secret, but we explicitly check to be safe
+  const clientSecret = paymentIntent.client_secret;
+  if (!clientSecret) {
+    throw new Error('Stripe PaymentIntent client_secret is missing');
+  }
+
+  return {
+    clientSecret,
+    paymentId: payment.id,
+  };
 }

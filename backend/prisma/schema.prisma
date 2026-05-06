@@ -262,10 +262,11 @@ model OrderItem {
 }
 
 /// Payment – stores Stripe payment intent info for an order.
+/// The orderId is optional initially (payment created before order).
 model Payment {
   id                    String        @id @default(uuid())
-  orderId               String        @unique
-  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId               String?        @unique            // nullable – assigned after order creation
+  order                 Order?         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   stripePaymentIntentId String        @unique
   amount                Decimal
   status                PaymentStatus @default(PENDING)
