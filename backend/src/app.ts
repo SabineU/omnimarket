@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
+import sellerOrderRoutes from './routes/seller-order.routes.js'; // <-- added
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import adminProductRoutes from './routes/adminProduct.routes.js';
@@ -51,8 +52,6 @@ app.use(morgan('dev'));
 
 // ---------------------------------------------------------------------------
 // Stripe webhook route – must be BEFORE the JSON body parser!
-// Stripe sends the request body as raw JSON, and we need the raw bytes
-// to verify the webhook signature.
 // ---------------------------------------------------------------------------
 app.use('/api/webhooks', webhookRoutes);
 
@@ -83,6 +82,9 @@ app.use('/api/seller', sellerRoutes);
 // Seller product routes
 app.use('/api/seller/products', productRoutes);
 
+// Seller order routes
+app.use('/api/seller/orders', sellerOrderRoutes); // <-- added
+
 // Seller image upload
 app.use('/api/seller/upload', uploadRoutes);
 
@@ -111,7 +113,7 @@ app.use('/api/cart', couponRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/checkout', paymentRoutes);
 
-// Customer order routes (all require authentication)
+// Customer order routes
 app.use('/api/orders', orderRoutes);
 
 // ---------- Protected route examples ----------
