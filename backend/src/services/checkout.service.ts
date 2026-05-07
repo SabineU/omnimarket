@@ -7,7 +7,13 @@ import { prisma } from '../db.js';
 import { getUserCart, InsufficientStockError } from './cart.service.js';
 import { calculateDiscount } from './coupon.service.js';
 import { stripe } from '../config/stripe.js';
-import type { Order } from '@prisma/client'; // <-- new import
+import type { Order } from '@prisma/client';
+
+// ---- Notification service imports ----
+import {
+  sendCustomerOrderConfirmation,
+  sendSellerNewOrderNotification,
+} from './notification.service.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -328,6 +334,22 @@ export async function completeCheckout(
 
     return order;
   });
+
+  // ---- 7. Send notifications (best‑effort, non‑blocking) ----
+  // Collect unique seller IDs from the preview items
+  const sellerIds = [...new Set(preview.items.map((item) => item.sellerId))];
+
+  // Notify each seller about the new order
+  for (const sellerId of sellerIds) {
+    sendSellerNewOrderNotification(sellerId, order.id).catch((err) =>
+      console.error('Failed to notify seller:', err),
+    );
+  }
+
+  // Notify the customer
+  sendCustomerOrderConfirmation(userId, order.id).catch((err) =>
+    console.error('Failed to notify customer:', err),
+  );
 
   return { order };
 }
