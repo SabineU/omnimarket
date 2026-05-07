@@ -20,7 +20,8 @@ import cartRoutes from './routes/cart.routes.js';
 import couponRoutes from './routes/coupon.routes.js';
 import checkoutRoutes from './routes/checkout.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
-import webhookRoutes from './routes/webhook.routes.js'; // <-- added
+import webhookRoutes from './routes/webhook.routes.js';
+import orderRoutes from './routes/order.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -109,6 +110,9 @@ app.use('/api/cart', couponRoutes);
 // Checkout validation and payment
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/checkout', paymentRoutes);
+
+// Customer order routes (all require authentication)
+app.use('/api/orders', orderRoutes);
 
 // ---------- Protected route examples ----------
 
