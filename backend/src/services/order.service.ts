@@ -4,7 +4,7 @@
 
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
-import type { OrderStatus } from '@omnimarket/shared'; // <-- fixed: import type only
+import type { OrderStatus } from '@omnimarket/shared';
 
 /** Order enriched with items for the frontend */
 export interface EnrichedOrder extends Order {
@@ -16,7 +16,7 @@ export interface EnrichedOrder extends Order {
 
 /** Options for listing orders */
 export interface OrderListOptions {
-  status?: string; // ORDER_STATUS enum value (e.g., CONFIRMED, SHIPPED)
+  status?: string;
   page?: number;
   limit?: number;
 }
@@ -32,9 +32,16 @@ export interface PaginatedOrders {
   };
 }
 
+/** Custom error for cancellation failures */
+export class OrderCancellationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OrderCancellationError';
+  }
+}
+
 /**
  * Return all orders belonging to the given user, newest first.
- * Supports optional status filtering and pagination.
  */
 export async function getUserOrders(
   userId: string,
@@ -44,10 +51,8 @@ export async function getUserOrders(
   const limit = Math.min(50, Math.max(1, options.limit ?? 10));
   const skip = (page - 1) * limit;
 
-  // Build the where clause with the correct Prisma type
   const where: Prisma.OrderWhereInput = { customerId: userId };
   if (options.status) {
-    // The shared enum values match the database enums, so the cast is safe
     where.status = options.status as OrderStatus;
   }
 
@@ -86,7 +91,6 @@ export async function getUserOrders(
 
 /**
  * Return a single order by its ID, ensuring it belongs to the given user.
- * Throws a generic error if the order is not found or doesn't belong to the user.
  */
 export async function getOrderById(orderId: string, userId: string): Promise<EnrichedOrder> {
   const order = await prisma.order.findUnique({
@@ -110,4 +114,62 @@ export async function getOrderById(orderId: string, userId: string): Promise<Enr
   }
 
   return order as EnrichedOrder;
+}
+
+/**
+ * Cancel an order that belongs to the user, if it is still in a cancellable state.
+ * Cancellable statuses: PENDING, CONFIRMED (before shipping).
+ * Restores stock for each order item that has a variation.
+ * Runs in a database transaction to guarantee atomicity.
+ */
+export async function cancelOrder(orderId: string, userId: string): Promise<EnrichedOrder> {
+  // 1. Fetch the order and verify ownership + cancellable status
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+
+  if (!order || order.customerId !== userId) {
+    throw new OrderCancellationError('Order not found');
+  }
+
+  const cancellableStatuses: string[] = ['PENDING', 'CONFIRMED'];
+  if (!cancellableStatuses.includes(order.status)) {
+    throw new OrderCancellationError(`Order cannot be cancelled because it is ${order.status}`);
+  }
+
+  // 2. Perform cancellation in a transaction
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    // Restore stock for each item with a variation
+    for (const item of order.items) {
+      if (item.variationId) {
+        await tx.productVariation.update({
+          where: { id: item.variationId },
+          data: { stockQty: { increment: item.quantity } },
+        });
+      }
+    }
+
+    // Change order status to CANCELLED
+    const cancelled = await tx.order.update({
+      where: { id: orderId },
+      data: { status: 'CANCELLED' },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { name: true, images: { select: { url: true }, take: 1 } },
+            },
+            variation: {
+              select: { sku: true, size: true, color: true },
+            },
+          },
+        },
+      },
+    });
+
+    return cancelled;
+  });
+
+  return updatedOrder as EnrichedOrder;
 }

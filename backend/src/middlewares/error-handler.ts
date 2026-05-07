@@ -11,6 +11,7 @@ import { SellerNotFoundError } from '../services/admin.service.js';
 import { InsufficientStockError } from '../services/cart.service.js';
 import { CouponValidationError } from '../services/coupon.service.js';
 import { CheckoutValidationError, PaymentNotFoundError } from '../services/checkout.service.js';
+import { OrderCancellationError } from '../services/order.service.js';
 import Stripe from 'stripe';
 
 /**
@@ -54,6 +55,10 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res.status(400).json({ status: 'error', message: err.message });
   } else if (err instanceof PaymentNotFoundError) {
     // Payment intent not found, already processed, or does not belong to user
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // ---- Order errors ----
+  } else if (err instanceof OrderCancellationError) {
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Stripe SDK errors ----

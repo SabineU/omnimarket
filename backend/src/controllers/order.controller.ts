@@ -20,7 +20,6 @@ function getParam(req: Request, name: string): string {
 
 /**
  * GET /api/orders
- * Optional query: ?status=CONFIRMED&page=1&limit=10
  */
 export async function listOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -52,6 +51,23 @@ export async function getOrder(req: Request, res: Response, next: NextFunction):
     const userId = getUserId(req);
     const orderId = getParam(req, 'id');
     const order = await orderService.getOrderById(orderId, userId);
+    res.status(200).json({
+      status: 'success',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/orders/:id/cancel
+ */
+export async function cancelOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getUserId(req);
+    const orderId = getParam(req, 'id');
+    const order = await orderService.cancelOrder(orderId, userId);
     res.status(200).json({
       status: 'success',
       data: { order },

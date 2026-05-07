@@ -14,4 +14,7 @@ router.get('/', orderController.listOrders);
 // GET /api/orders/:id
 router.get('/:id', orderController.getOrder);
 
+// PATCH /api/orders/:id/cancel
+router.patch('/:id/cancel', orderController.cancelOrder);
+
 export default router;
