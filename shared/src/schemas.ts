@@ -145,6 +145,11 @@ export const completeCheckoutSchema = z.object({
   stripePaymentIntentId: z.string().min(1, 'Payment intent ID is required'),
 });
 
+// ---- Seller Order Status Update ----
+export const sellerOrderStatusSchema = z.object({
+  status: z.enum(['CONFIRMED', 'SHIPPED']),
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),

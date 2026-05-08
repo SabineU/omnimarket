@@ -59,3 +59,26 @@ export async function getOrder(req: Request, res: Response, next: NextFunction):
     next(error);
   }
 }
+
+/**
+ * PATCH /api/seller/orders/:id/status
+ * Body: { status: 'CONFIRMED' | 'SHIPPED' }
+ */
+export async function updateOrderStatus(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const sellerId = getSellerId(req);
+    const orderId = getParam(req, 'id');
+    const { status } = req.body;
+    const order = await sellerOrderService.updateOrderStatus(sellerId, orderId, status);
+    res.status(200).json({
+      status: 'success',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
