@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
 import { authorize } from '../middlewares/rbac.js';
 import { validate } from '../middlewares/validate.js';
-import { sellerOrderStatusSchema } from '@omnimarket/shared';
+import { sellerOrderStatusSchema } from '@omnimarket/shared'; // <-- added
 import * as sellerOrderController from '../controllers/seller-order.controller.js';
 
 const router = Router();
@@ -18,11 +18,7 @@ router.get('/', sellerOrderController.listOrders);
 // GET /api/seller/orders/:id
 router.get('/:id', sellerOrderController.getOrder);
 
-// PATCH /api/seller/orders/:id/status
-router.patch(
-  '/:id/status',
-  validate(sellerOrderStatusSchema),
-  sellerOrderController.updateOrderStatus,
-);
+// PATCH /api/seller/orders/:id/status – update order status (confirm, ship)
+router.patch('/:id/status', validate(sellerOrderStatusSchema), sellerOrderController.updateStatus);
 
 export default router;
