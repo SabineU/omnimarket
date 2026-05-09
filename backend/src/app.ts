@@ -13,6 +13,7 @@ import sellerOrderRoutes from './routes/seller-order.routes.js'; // <-- added
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import adminProductRoutes from './routes/adminProduct.routes.js';
+import adminOrderRoutes from './routes/admin-order.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
@@ -96,6 +97,9 @@ app.use('/api/admin/categories', adminCategoryRoutes);
 
 // Admin product moderation
 app.use('/api/admin/products', adminProductRoutes);
+
+// Admin order management
+app.use('/api/admin/orders', adminOrderRoutes);
 
 // Public category routes
 app.use('/api/categories', categoryRoutes);
