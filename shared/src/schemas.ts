@@ -150,6 +150,16 @@ export const sellerOrderStatusSchema = z.object({
   status: z.enum(['CONFIRMED', 'SHIPPED']),
 });
 
+// ---- Return / Refund ----
+export const requestReturnSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export const processRefundSchema = z.object({
+  action: z.enum(['APPROVE', 'REJECT']),
+  reason: z.string().optional(), // admin's note
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),

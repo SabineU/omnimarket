@@ -12,6 +12,7 @@ import { InsufficientStockError } from '../services/cart.service.js';
 import { CouponValidationError } from '../services/coupon.service.js';
 import { CheckoutValidationError, PaymentNotFoundError } from '../services/checkout.service.js';
 import { OrderCancellationError } from '../services/order.service.js';
+import { ReturnRequestError, RefundProcessError } from '../services/return.service.js';
 import Stripe from 'stripe';
 
 /**
@@ -59,6 +60,14 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
     // ---- Order errors ----
   } else if (err instanceof OrderCancellationError) {
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // ---- Return & Refund errors ----
+  } else if (err instanceof ReturnRequestError) {
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // Admin refund processing errors (e.g., invalid action, wrong order status)
+  } else if (err instanceof RefundProcessError) {
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Stripe SDK errors ----
