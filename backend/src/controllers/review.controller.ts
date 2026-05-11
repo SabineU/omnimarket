@@ -34,3 +34,28 @@ export async function createReview(req: Request, res: Response, next: NextFuncti
     next(error);
   }
 }
+
+/**
+ * GET /api/products/:productId/reviews
+ * Optional query: ?page=1&limit=10
+ */
+export async function listReviews(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const productId = getParam(req, 'productId');
+    const options: reviewService.ReviewListOptions = {
+      page: req.query.page ? Number(req.query.page) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    };
+
+    const result = await reviewService.getProductReviews(productId, options);
+    res.status(200).json({
+      status: 'success',
+      data: {
+        reviews: result.reviews,
+        pagination: result.pagination,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}

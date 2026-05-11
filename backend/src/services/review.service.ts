@@ -22,8 +22,6 @@ export async function createReview(
   comment?: string,
 ): Promise<{ review: Review; averageRating: number; reviewCount: number }> {
   // 1. Verify the user has purchased this product.
-  //    A purchase exists if there's at least one order item for this product
-  //    in an order that belongs to the user and is not CANCELLED/RETURNED.
   const purchaseExists = await prisma.orderItem.findFirst({
     where: {
       productId,
@@ -70,4 +68,64 @@ export async function createReview(
   const reviewCount = aggregation._count.rating ?? 0;
 
   return { review, averageRating, reviewCount };
+}
+
+/** Options for listing reviews */
+export interface ReviewListOptions {
+  page?: number;
+  limit?: number;
+}
+
+/** A review enriched with the customer's name */
+export interface ReviewWithCustomer extends Review {
+  customer: { name: string };
+}
+
+/** Paginated result for reviews */
+export interface PaginatedReviews {
+  reviews: ReviewWithCustomer[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    limit: number;
+  };
+}
+
+/**
+ * Return a paginated list of reviews for a given product.
+ * Most recent reviews are returned first.
+ */
+export async function getProductReviews(
+  productId: string,
+  options: ReviewListOptions = {},
+): Promise<PaginatedReviews> {
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.min(50, Math.max(1, options.limit ?? 10));
+  const skip = (page - 1) * limit;
+
+  const where = { productId };
+
+  const [reviews, totalItems] = await Promise.all([
+    prisma.review.findMany({
+      where,
+      include: {
+        customer: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.review.count({ where }),
+  ]);
+
+  return {
+    reviews: reviews as ReviewWithCustomer[],
+    pagination: {
+      currentPage: page,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems,
+      limit,
+    },
+  };
 }

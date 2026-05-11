@@ -1,5 +1,5 @@
 // backend/src/routes/review.routes.ts
-// Product review routes – require authentication.
+// Product review routes – creation requires authentication, listing is public.
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
@@ -8,9 +8,15 @@ import * as reviewController from '../controllers/review.controller.js';
 
 const router = Router();
 
-router.use(authenticate);
+// GET /api/products/:productId/reviews – public, no authentication
+router.get('/:productId/reviews', reviewController.listReviews);
 
-// POST /api/products/:productId/reviews
-router.post('/:productId/reviews', validate(reviewSchema), reviewController.createReview);
+// POST /api/products/:productId/reviews – requires authentication
+router.post(
+  '/:productId/reviews',
+  authenticate,
+  validate(reviewSchema),
+  reviewController.createReview,
+);
 
 export default router;
