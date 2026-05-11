@@ -31,6 +31,7 @@ export default defineConfig({
         'src/services/seller-order.service.ts',
         'src/services/admin-order.service.ts',
         'src/services/return.service.ts',
+        'src/services/review.service.ts',
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],

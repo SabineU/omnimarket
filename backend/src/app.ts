@@ -24,6 +24,7 @@ import checkoutRoutes from './routes/checkout.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import orderRoutes from './routes/order.routes.js';
+import reviewRoutes from './routes/review.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -119,6 +120,9 @@ app.use('/api/checkout', paymentRoutes);
 
 // Customer order routes
 app.use('/api/orders', orderRoutes);
+
+// Product review routes
+app.use('/api/products', reviewRoutes);
 
 // ---------- Protected route examples ----------
 
