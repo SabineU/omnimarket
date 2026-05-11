@@ -1,19 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // backend/src/__tests__/services/auth.service.test.ts
-// Unit tests for the authentication service.
-// All relative imports go two levels up because we are inside __tests__/services/.
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Mock the JWT utility module FIRST, using a static relative path from the
-// test file.  Vitest will hoist this mock and resolve it correctly.
-// ---------------------------------------------------------------------------
 vi.mock('../../utils/jwt.js', () => {
   const mockGenerateAccessToken = vi.fn().mockReturnValue('mock-access-token');
   const mockGenerateRefreshToken = vi.fn().mockReturnValue('mock-refresh-token');
   const mockVerifyRefreshToken = vi.fn();
-
   return {
     generateAccessToken: mockGenerateAccessToken,
     generateRefreshToken: mockGenerateRefreshToken,
@@ -22,9 +14,6 @@ vi.mock('../../utils/jwt.js', () => {
   };
 });
 
-// ---------------------------------------------------------------------------
-// Mock the database module
-// ---------------------------------------------------------------------------
 vi.mock('../../db.js', () => {
   const mockPrisma = {
     user: {
@@ -42,9 +31,6 @@ vi.mock('../../db.js', () => {
   return { prisma: mockPrisma };
 });
 
-// ---------------------------------------------------------------------------
-// Mock bcrypt
-// ---------------------------------------------------------------------------
 vi.mock('bcrypt', () => {
   return {
     default: {
@@ -54,9 +40,6 @@ vi.mock('bcrypt', () => {
   };
 });
 
-// ---------------------------------------------------------------------------
-// Import everything AFTER all mocks are registered
-// ---------------------------------------------------------------------------
 import {
   registerUser,
   loginUser,
@@ -91,6 +74,7 @@ describe('sanitizeUser', () => {
       role: 'CUSTOMER' as const,
       avatarUrl: null,
       tokenVersion: 0,
+      isActive: true, // <-- added
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -114,6 +98,7 @@ describe('registerUser', () => {
       role: 'CUSTOMER' as const,
       avatarUrl: null,
       tokenVersion: 0,
+      isActive: true, // <-- added
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -156,6 +141,7 @@ describe('loginUser', () => {
       role: 'CUSTOMER' as const,
       avatarUrl: null,
       tokenVersion: 0,
+      isActive: true, // <-- added
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -202,14 +188,12 @@ describe('refreshUserToken', () => {
       name: 'U',
       role: 'CUSTOMER' as const,
       avatarUrl: null,
+      isActive: true, // <-- added
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     vi.mocked(prisma.user.findUnique).mockResolvedValue(fakeUser as any);
-    vi.mocked(prisma.user.update).mockResolvedValue({
-      ...fakeUser,
-      tokenVersion: 4,
-    } as any);
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...fakeUser, tokenVersion: 4 } as any);
 
     const result = await refreshUserToken('old-refresh-token');
 
@@ -222,14 +206,8 @@ describe('refreshUserToken', () => {
   });
 
   it('should throw TokenRefreshError if version mismatch', async () => {
-    vi.mocked(verifyRefreshToken).mockReturnValue({
-      userId: 'u1',
-      tokenVersion: 2,
-    });
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      id: 'u1',
-      tokenVersion: 5,
-    } as any);
+    vi.mocked(verifyRefreshToken).mockReturnValue({ userId: 'u1', tokenVersion: 2 });
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'u1', tokenVersion: 5 } as any);
     await expect(refreshUserToken('old')).rejects.toThrow(TokenRefreshError);
   });
 });
@@ -278,8 +256,6 @@ describe('resetPassword', () => {
     await expect(resetPassword('valid-token', 'NewPass456!')).resolves.toBeUndefined();
     expect(bcrypt.hash).toHaveBeenCalledWith('NewPass456!', 12);
     expect(prisma.user.update).toHaveBeenCalled();
-    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({
-      where: { id: 'rt1' },
-    });
+    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({ where: { id: 'rt1' } });
   });
 });

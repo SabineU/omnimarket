@@ -54,6 +54,11 @@ export const adminProductStatusSchema = z.object({
   status: z.enum(['DRAFT', 'PENDING', 'ACTIVE', 'INACTIVE']),
 });
 
+// ---- Admin User Management ----
+export const adminUserActiveSchema = z.object({
+  isActive: z.boolean(),
+});
+
 // ---- Category Administration ----
 export const categoryCreateSchema = z.object({
   name: z.string().min(1, 'Category name is required'),

@@ -69,6 +69,7 @@ model User {
   role         UserRole  @default(CUSTOMER)
   avatarUrl    String?                           // nullable Cloudinary URL
   tokenVersion Int       @default(0)            // for refresh token rotation
+  isActive     Boolean   @default(true)         // <-- added: allows admins to deactivate accounts
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -80,7 +81,7 @@ model User {
   cartItems            CartItem[]
   couponUsages         CouponUsage[]
   passwordResetTokens  PasswordResetToken[]
-  payoutRequests       PayoutRequest[]      // <-- added for reverse relation
+  payoutRequests       PayoutRequest[]      // reverse relation for payout requests
 
   @@index([email])                               // speed up login lookups
   @@map("users")                                 // table name in Postgres
