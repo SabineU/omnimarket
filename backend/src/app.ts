@@ -22,6 +22,7 @@ import adminOrderRoutes from './routes/admin-order.routes.js';
 import adminPayoutRoutes from './routes/admin-payout.routes.js';
 import adminDashboardRoutes from './routes/admin-dashboard.routes.js';
 import adminUserRoutes from './routes/admin-user.routes.js';
+import couponAdminRoutes from './routes/coupon-admin.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
@@ -133,6 +134,9 @@ app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Admin user management
 app.use('/api/admin/users', adminUserRoutes);
+
+// Admin coupon management
+app.use('/api/admin/coupons', couponAdminRoutes);
 
 // Public category routes
 app.use('/api/categories', categoryRoutes);

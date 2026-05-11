@@ -176,6 +176,18 @@ export const processPayoutSchema = z.object({
   adminNote: z.string().optional(),
 });
 
+// ---- Admin Coupon Management ----
+export const couponAdminCreateSchema = z.object({
+  code: z.string().min(1, 'Coupon code is required'),
+  discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT']),
+  discountValue: z.number().positive('Discount value must be positive'),
+  minCartAmount: z.number().min(0).optional(),
+  usageLimit: z.number().int().min(1).optional(),
+  expiresAt: z.string().datetime().optional(), // ISO 8601 date string or null
+});
+
+export const couponAdminUpdateSchema = couponAdminCreateSchema.partial();
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
