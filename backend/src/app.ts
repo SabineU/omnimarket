@@ -15,11 +15,12 @@ import sellerDashboardRoutes from './routes/seller-dashboard.routes.js';
 import sellerAnalyticsRoutes from './routes/seller-analytics.routes.js';
 import sellerLedgerRoutes from './routes/seller-ledger.routes.js';
 import sellerPayoutRoutes from './routes/seller-payout.routes.js';
-import adminPayoutRoutes from './routes/admin-payout.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import adminProductRoutes from './routes/adminProduct.routes.js';
 import adminOrderRoutes from './routes/admin-order.routes.js';
+import adminPayoutRoutes from './routes/admin-payout.routes.js';
+import adminDashboardRoutes from './routes/admin-dashboard.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
@@ -111,9 +112,6 @@ app.use('/api/seller/payouts', sellerPayoutRoutes);
 // Seller image upload
 app.use('/api/seller/upload', uploadRoutes);
 
-// Admin payout management
-app.use('/api/admin/payouts', adminPayoutRoutes);
-
 // Admin routes (seller approval)
 app.use('/api/admin', adminRoutes);
 
@@ -125,6 +123,12 @@ app.use('/api/admin/products', adminProductRoutes);
 
 // Admin order management
 app.use('/api/admin/orders', adminOrderRoutes);
+
+// Admin payout management
+app.use('/api/admin/payouts', adminPayoutRoutes);
+
+// Admin dashboard routes
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Public category routes
 app.use('/api/categories', categoryRoutes);

@@ -36,6 +36,7 @@ export default defineConfig({
         'src/services/seller-dashboard.service.ts',
         'src/services/seller-analytics.service.ts',
         'src/services/seller-ledger.service.ts',
+        'src/services/admin-dashboard.service.ts',
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],
