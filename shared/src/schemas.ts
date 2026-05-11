@@ -160,6 +160,17 @@ export const processRefundSchema = z.object({
   reason: z.string().optional(), // admin's note
 });
 
+// ---- Payout ----
+export const requestPayoutSchema = z.object({
+  amount: z.number().positive('Amount must be positive'),
+});
+
+// ---- Admin Payout Processing ----
+export const processPayoutSchema = z.object({
+  action: z.enum(['APPROVE', 'REJECT']),
+  adminNote: z.string().optional(),
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),

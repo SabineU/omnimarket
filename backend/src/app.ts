@@ -14,6 +14,8 @@ import sellerReviewRoutes from './routes/seller-review.routes.js';
 import sellerDashboardRoutes from './routes/seller-dashboard.routes.js';
 import sellerAnalyticsRoutes from './routes/seller-analytics.routes.js';
 import sellerLedgerRoutes from './routes/seller-ledger.routes.js';
+import sellerPayoutRoutes from './routes/seller-payout.routes.js';
+import adminPayoutRoutes from './routes/admin-payout.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import adminProductRoutes from './routes/adminProduct.routes.js';
@@ -103,8 +105,14 @@ app.use('/api/seller/analytics', sellerAnalyticsRoutes);
 // Seller ledger routes
 app.use('/api/seller/ledger', sellerLedgerRoutes);
 
+// Seller payout routes
+app.use('/api/seller/payouts', sellerPayoutRoutes);
+
 // Seller image upload
 app.use('/api/seller/upload', uploadRoutes);
+
+// Admin payout management
+app.use('/api/admin/payouts', adminPayoutRoutes);
 
 // Admin routes (seller approval)
 app.use('/api/admin', adminRoutes);

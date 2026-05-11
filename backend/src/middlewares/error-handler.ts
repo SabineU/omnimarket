@@ -14,6 +14,7 @@ import { CheckoutValidationError, PaymentNotFoundError } from '../services/check
 import { OrderCancellationError } from '../services/order.service.js';
 import { ReturnRequestError, RefundProcessError } from '../services/return.service.js';
 import { ReviewValidationError } from '../services/review.service.js';
+import { PayoutValidationError } from '../services/payout.service.js'; // <-- added
 import Stripe from 'stripe';
 
 /**
@@ -61,18 +62,25 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
     // ---- Order errors ----
   } else if (err instanceof OrderCancellationError) {
+    // Order cannot be cancelled (wrong status, not owner, etc.)
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Return & Refund errors ----
   } else if (err instanceof ReturnRequestError) {
+    // Customer tried to request a return that is not allowed
     res.status(400).json({ status: 'error', message: err.message });
-
-    // Admin refund processing errors (e.g., invalid action, wrong order status)
   } else if (err instanceof RefundProcessError) {
+    // Admin tried to process a refund that is not allowed
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Review errors ----
   } else if (err instanceof ReviewValidationError) {
+    // User cannot review this product (not purchased, already reviewed, etc.)
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // ---- Payout errors ----
+  } else if (err instanceof PayoutValidationError) {
+    // Payout amount exceeds earnings, duplicate request, etc.
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Stripe SDK errors ----

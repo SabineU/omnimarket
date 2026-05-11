@@ -80,6 +80,7 @@ model User {
   cartItems            CartItem[]
   couponUsages         CouponUsage[]
   passwordResetTokens  PasswordResetToken[]
+  payoutRequests       PayoutRequest[]      // <-- added for reverse relation
 
   @@index([email])                               // speed up login lookups
   @@map("users")                                 // table name in Postgres
@@ -320,4 +321,19 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+/// PayoutRequest – seller requests a withdrawal of their net earnings.
+/// Admin can approve (mark as PAID) or reject.
+model PayoutRequest {
+  id        String   @id @default(uuid())
+  sellerId  String
+  seller    User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  status    String   @default("PENDING")   // PENDING, PAID, REJECTED
+  adminNote String?                        // optional note from admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payout_requests")
 }
