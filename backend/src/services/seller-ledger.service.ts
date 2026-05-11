@@ -15,28 +15,24 @@ export interface LedgerTransaction {
 
 /** Full ledger summary */
 export interface SellerLedger {
-  totalEarned: number; // gross revenue from all non‑cancelled orders
-  commissionRate: number; // platform commission percentage (e.g., 10)
-  totalCommission: number; // amount deducted as commission
-  netEarnings: number; // totalEarned – totalCommission
-  pendingPayout: number; // placeholder – same as netEarnings for now
+  totalEarned: number;
+  commissionRate: number;
+  totalCommission: number;
+  netEarnings: number;
+  pendingPayout: number;
   transactions: LedgerTransaction[];
 }
 
 /**
  * Retrieve the earnings and transaction history for a seller.
- * @param sellerId – the authenticated seller's ID
  */
 export async function getSellerLedger(sellerId: string): Promise<SellerLedger> {
-  // 1. Get the seller's commission rate (default to 10%)
   const profile = await prisma.sellerProfile.findUnique({
     where: { userId: sellerId },
     select: { commissionRate: true },
   });
   const commissionRate = profile?.commissionRate ? Number(profile.commissionRate) : 10;
 
-  // 2. Fetch all order items belonging to this seller,
-  //    including the order status and product name.
   const items = await prisma.orderItem.findMany({
     where: { sellerId },
     include: {
@@ -46,14 +42,12 @@ export async function getSellerLedger(sellerId: string): Promise<SellerLedger> {
     orderBy: { order: { createdAt: 'desc' } },
   });
 
-  // 3. Build the transaction list and compute total earned.
   let totalEarned = 0;
   const transactions: LedgerTransaction[] = [];
 
   for (const item of items) {
     const lineTotal = Number(item.priceAtTime) * item.quantity;
 
-    // Only count revenue from orders that are not cancelled/returned
     if (item.order.status !== 'CANCELLED' && item.order.status !== 'RETURNED') {
       totalEarned += lineTotal;
     }
@@ -69,7 +63,6 @@ export async function getSellerLedger(sellerId: string): Promise<SellerLedger> {
     });
   }
 
-  // 4. Calculate commission and net earnings
   const totalCommission = (totalEarned * commissionRate) / 100;
   const netEarnings = totalEarned - totalCommission;
 
@@ -78,7 +71,47 @@ export async function getSellerLedger(sellerId: string): Promise<SellerLedger> {
     commissionRate,
     totalCommission,
     netEarnings,
-    pendingPayout: netEarnings, // placeholder – will be refined later
+    pendingPayout: netEarnings,
     transactions,
   };
+}
+
+/**
+ * Generate a CSV string of the seller's transaction history.
+ * The first line is a header row; each subsequent line is a transaction.
+ * @param sellerId – the authenticated seller's ID
+ * @returns CSV string
+ */
+export async function generateLedgerCsv(sellerId: string): Promise<string> {
+  const { transactions } = await getSellerLedger(sellerId);
+
+  // Build the CSV header
+  const headers = ['Order ID', 'Product', 'Quantity', 'Unit Price', 'Total', 'Status', 'Date'];
+
+  // Escape a value for CSV: wrap in double quotes if it contains a comma,
+  // double quote, or newline, and double any existing double quotes.
+  function escapeCsv(value: string | number): string {
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  const headerLine = headers.map(escapeCsv).join(',');
+  const rows = transactions.map((t) =>
+    [
+      t.orderId,
+      t.productName,
+      t.quantity,
+      t.unitPrice.toFixed(2),
+      t.total.toFixed(2),
+      t.orderStatus,
+      t.createdAt.slice(0, 10),
+    ]
+      .map(escapeCsv)
+      .join(','),
+  );
+
+  return [headerLine, ...rows].join('\n');
 }

@@ -1,5 +1,5 @@
 // backend/src/routes/seller-ledger.routes.ts
-// Seller ledger route – restricted to SELLER role.
+// Seller ledger routes – restricted to SELLER role.
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.js';
 import { authorize } from '../middlewares/rbac.js';
@@ -12,5 +12,8 @@ router.use(authorize('SELLER'));
 
 // GET /api/seller/ledger
 router.get('/', ledgerController.getLedger);
+
+// GET /api/seller/ledger/export/csv
+router.get('/export/csv', ledgerController.exportCsv);
 
 export default router;
