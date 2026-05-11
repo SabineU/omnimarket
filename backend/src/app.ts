@@ -9,7 +9,8 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import addressRoutes from './routes/address.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
-import sellerOrderRoutes from './routes/seller-order.routes.js'; // <-- added
+import sellerOrderRoutes from './routes/seller-order.routes.js';
+import sellerReviewRoutes from './routes/seller-review.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminCategoryRoutes from './routes/adminCategory.routes.js';
 import adminProductRoutes from './routes/adminProduct.routes.js';
@@ -85,7 +86,10 @@ app.use('/api/seller', sellerRoutes);
 app.use('/api/seller/products', productRoutes);
 
 // Seller order routes
-app.use('/api/seller/orders', sellerOrderRoutes); // <-- added
+app.use('/api/seller/orders', sellerOrderRoutes);
+
+// Seller review dashboard routes
+app.use('/api/seller/reviews', sellerReviewRoutes);
 
 // Seller image upload
 app.use('/api/seller/upload', uploadRoutes);
