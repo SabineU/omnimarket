@@ -1,9 +1,6 @@
 // backend/src/utils/jwt.ts
-// JWT utility functions – creates and verifies access and refresh tokens.
-// Access tokens are short‑lived (15 min) and stored in memory on the client.
-// Refresh tokens are longer‑lived (7 days) and stored in an httpOnly secure cookie.
-// Refresh token rotation is implemented via a tokenVersion field on the User model.
-
+// JWT utility functions – creates and verifies access and refresh tokens,
+// plus impersonation tokens for admin debugging.
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 
@@ -16,6 +13,11 @@ export interface AccessTokenPayload {
 export interface RefreshTokenPayload {
   userId: string;
   tokenVersion: number;
+}
+
+/** Payload for an impersonation token (admin debugging) */
+export interface ImpersonationTokenPayload extends AccessTokenPayload {
+  impersonatedBy: string; // admin user ID who initiated the impersonation
 }
 
 // Short‑lived access token (15 minutes)
@@ -44,4 +46,23 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 // Verify a refresh token; throws if invalid or expired
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
   return jwt.verify(token, config.JWT_REFRESH_SECRET) as RefreshTokenPayload;
+}
+
+/**
+ * Generate a short‑lived impersonation token.
+ * This token allows an admin to act as another user.
+ * @param impersonatedUser – the target user to impersonate
+ * @param adminUser – the admin who is requesting impersionation
+ * @returns a JWT that contains userId, role, and impersonatedBy
+ */
+export function generateImpersonationToken(
+  impersonatedUser: { id: string; role: string },
+  adminUser: { id: string },
+): string {
+  const payload: ImpersonationTokenPayload = {
+    userId: impersonatedUser.id,
+    role: impersonatedUser.role,
+    impersonatedBy: adminUser.id,
+  };
+  return jwt.sign(payload, config.JWT_ACCESS_SECRET, { expiresIn: '15m' });
 }

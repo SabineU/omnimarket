@@ -194,6 +194,11 @@ export const systemSettingUpdateSchema = z.object({
   value: z.string().min(1, 'Setting value is required'),
 });
 
+// ---- Admin Impersonation ----
+export const adminImpersonateSchema = z.object({
+  userId: z.string().uuid('Invalid user ID'),
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),

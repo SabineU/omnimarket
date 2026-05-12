@@ -14,7 +14,8 @@ import { CheckoutValidationError, PaymentNotFoundError } from '../services/check
 import { OrderCancellationError } from '../services/order.service.js';
 import { ReturnRequestError, RefundProcessError } from '../services/return.service.js';
 import { ReviewValidationError } from '../services/review.service.js';
-import { PayoutValidationError } from '../services/payout.service.js'; // <-- added
+import { PayoutValidationError } from '../services/payout.service.js';
+import { ImpersonationError } from '../services/impersonation.service.js';
 import Stripe from 'stripe';
 
 /**
@@ -81,6 +82,10 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     // ---- Payout errors ----
   } else if (err instanceof PayoutValidationError) {
     // Payout amount exceeds earnings, duplicate request, etc.
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // ---- Impersonation errors ----
+  } else if (err instanceof ImpersonationError) {
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Stripe SDK errors ----
