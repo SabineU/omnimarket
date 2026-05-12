@@ -1,10 +1,10 @@
 // frontend/src/main.tsx
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx'; // .tsx extension allowed thanks to allowImportingTsExtensions
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
 import './index.css';
 
-// Get the root element; if it's missing, throw a clear error (no non-null assertion)
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error(
@@ -14,6 +14,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 );
