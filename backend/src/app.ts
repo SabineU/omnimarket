@@ -23,6 +23,7 @@ import adminPayoutRoutes from './routes/admin-payout.routes.js';
 import adminDashboardRoutes from './routes/admin-dashboard.routes.js';
 import adminUserRoutes from './routes/admin-user.routes.js';
 import couponAdminRoutes from './routes/coupon-admin.routes.js';
+import systemSettingsRoutes from './routes/system-settings.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 import productRoutes from './routes/product.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
@@ -116,6 +117,9 @@ app.use('/api/seller/upload', uploadRoutes);
 
 // Admin routes (seller approval)
 app.use('/api/admin', adminRoutes);
+
+// Admin system settings routes
+app.use('/api/admin/settings', systemSettingsRoutes);
 
 // Admin category management
 app.use('/api/admin/categories', adminCategoryRoutes);

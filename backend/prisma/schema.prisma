@@ -69,7 +69,7 @@ model User {
   role         UserRole  @default(CUSTOMER)
   avatarUrl    String?                           // nullable Cloudinary URL
   tokenVersion Int       @default(0)            // for refresh token rotation
-  isActive     Boolean   @default(true)         // <-- added: allows admins to deactivate accounts
+  isActive     Boolean   @default(true)         // allows admins to deactivate accounts
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -337,4 +337,14 @@ model PayoutRequest {
   updatedAt DateTime @updatedAt
 
   @@map("payout_requests")
+}
+
+/// SystemSetting – key‑value store for platform configuration.
+model SystemSetting {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  value      String
+  updatedAt  DateTime @updatedAt
+
+  @@map("system_settings")
 }

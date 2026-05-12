@@ -39,6 +39,7 @@ export default defineConfig({
         'src/services/admin-dashboard.service.ts',
         'src/services/admin-user.service.ts',
         'src/services/coupon-admin.service.ts',
+        'src/services/system-settings.service.ts',
         // TODO: add more files as tests are written for them
       ],
       exclude: ['src/__tests__/**', 'src/test-utils/**', 'src/types/**', 'src/**/*.d.ts'],

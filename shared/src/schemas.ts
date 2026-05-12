@@ -188,6 +188,12 @@ export const couponAdminCreateSchema = z.object({
 
 export const couponAdminUpdateSchema = couponAdminCreateSchema.partial();
 
+// ---- System Settings ----
+export const systemSettingUpdateSchema = z.object({
+  key: z.string().min(1, 'Setting key is required'),
+  value: z.string().min(1, 'Setting value is required'),
+});
+
 // ---- Review ----
 export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
