@@ -1,5 +1,5 @@
 // frontend/src/hooks/useProducts.ts
-// Example React Query hook – fetches the public product listing.
+// React Query hook that fetches the public product listing using Axios.
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 
@@ -15,7 +15,7 @@ interface Product {
   images: { url: string; altText: string }[];
 }
 
-/** The paginated response from our API */
+/** The paginated response from the API */
 interface ProductsResponse {
   status: string;
   data: {
@@ -30,8 +30,8 @@ interface ProductsResponse {
 }
 
 /**
- * Hook to fetch a paginated list of products with optional search/filters.
- * @param page – current page number (default 1)
+ * Fetch a paginated list of products.
+ * @param page – current page (default 1)
  * @param search – optional search term
  */
 export function useProducts(
@@ -40,12 +40,14 @@ export function useProducts(
 ): UseQueryResult<ProductsResponse, Error> {
   return useQuery<ProductsResponse, Error>({
     queryKey: ['products', { page, search }],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('limit', '12');
       if (search) params.set('search', search);
-      return apiClient<ProductsResponse>(`/products?${params.toString()}`);
+
+      const { data } = await apiClient.get<ProductsResponse>(`/products?${params.toString()}`);
+      return data;
     },
   });
 }
