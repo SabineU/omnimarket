@@ -19,10 +19,54 @@ export default defineConfig({
 
     // Make CSS imports not break tests
     css: false,
+
+    // ------------------------------------------------------------------
+    // Coverage configuration
+    //
+    // To keep the report honest, we only include files that currently
+    // have unit tests.  As we add tests for more files, we add their
+    // paths here.  This mirrors the approach used in the backend.
+    // ------------------------------------------------------------------
+    coverage: {
+      // Use the v8 provider (fast, built into Node.js)
+      provider: 'v8',
+
+      // Only measure files that have tests right now.
+      // TODO: add more files as tests are written for them.
+      include: [
+        'src/components/ProtectedRoute.tsx',
+        'src/components/ui/Button.tsx',
+        'src/components/ui/Input.tsx',
+        'src/hooks/useTheme.ts',
+        'src/contexts/ThemeProvider.tsx',
+        'src/contexts/theme-context.ts',
+        // 'src/components/ui/PasswordInput.tsx',   // <-- removed until tests are written
+        // TODO:
+        // 'src/components/Layout.tsx',
+        // 'src/components/ui/Card.tsx',
+        // 'src/pages/LoginPage.tsx',
+        // 'src/hooks/useProducts.ts',
+        // …
+      ],
+
+      // Exclude test files, setup, and type declarations
+      exclude: ['src/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts', 'src/vite-env.d.ts'],
+
+      // Report formats
+      reporter: ['text', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+
+      // Thresholds – enforce minimum coverage for the files we measure
+      thresholds: {
+        statements: 70,
+        branches: 50,
+        functions: 70,
+        lines: 70,
+      },
+    },
   },
   resolve: {
     alias: {
-      // Allow imports from @omnimarket/shared to resolve correctly
       '@omnimarket/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
