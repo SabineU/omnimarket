@@ -11,10 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "paths": {
-      "@shared/*": ["./shared/*"]
-    }
+    "noEmit": true
   },
   "include": ["*.config.mjs", "*.config.ts"],
   "exclude": ["node_modules", "dist", "build", "coverage"]

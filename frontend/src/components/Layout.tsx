@@ -1,13 +1,18 @@
 // frontend/src/components/Layout.tsx
-// Shared layout wrapper for all customer pages.
-// Contains a responsive header (logo, search, nav, cart, dark‑mode toggle)
-// and the common footer.
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from '../hooks/useAuth';
 import Footer from './Footer';
 
 function Layout(): React.JSX.Element {
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = (): void => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex flex-col">
@@ -46,27 +51,44 @@ function Layout(): React.JSX.Element {
 
           {/* Right side: nav, dark‑mode toggle, cart */}
           <div className="flex items-center gap-4">
-            {/* Desktop navigation links */}
-            <nav className="hidden space-x-5 text-sm font-medium md:flex">
+            <nav className="hidden space-x-5 text-sm font-medium md:flex items-center">
               <Link to="/" className="hover:text-primary-200 transition-colors">
                 Home
               </Link>
               <Link to="/products" className="hover:text-primary-200 transition-colors">
                 Shop
               </Link>
-              <Link to="/login" className="hover:text-primary-200 transition-colors">
-                Login
-              </Link>
+
+              {/* ---- Auth‑dependent links ---- */}
+              {user ? (
+                <>
+                  <Link to="/profile" className="hover:text-primary-200 transition-colors">
+                    Profile
+                  </Link>
+                  <Link to="/orders" className="hover:text-primary-200 transition-colors">
+                    Orders
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="hover:text-primary-200 transition-colors text-sm font-medium"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link to="/login" className="hover:text-primary-200 transition-colors">
+                  Login
+                </Link>
+              )}
             </nav>
 
-            {/* ---- Dark‑mode toggle button ---- */}
+            {/* Dark‑mode toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-primary-500 transition-colors"
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? (
-                // Moon icon → click to switch to light
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -76,7 +98,6 @@ function Layout(): React.JSX.Element {
                   />
                 </svg>
               ) : (
-                // Sun icon → click to switch to dark
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -88,7 +109,7 @@ function Layout(): React.JSX.Element {
               )}
             </button>
 
-            {/* Cart icon with item count */}
+            {/* Cart icon */}
             <Link
               to="/cart"
               className="relative p-2 rounded-full hover:bg-primary-500 transition-colors"
@@ -110,12 +131,10 @@ function Layout(): React.JSX.Element {
         </div>
       </header>
 
-      {/* ---- Main content ---- */}
       <main className="flex-1 mx-auto max-w-7xl px-4 py-8 w-full">
         <Outlet />
       </main>
 
-      {/* ---- Footer ---- */}
       <Footer />
     </div>
   );
