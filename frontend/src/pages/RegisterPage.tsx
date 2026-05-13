@@ -1,13 +1,12 @@
 // frontend/src/pages/RegisterPage.tsx
-// Registration form using React Hook Form + Zod (shared registerSchema).
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema } from '@omnimarket/shared';
 import { useAuth } from '../hooks/useAuth';
-import { Input, Button } from '../components/ui';
+import { Input, Button, PasswordInput } from '../components/ui';
 import { useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
-import { isAxiosError } from 'axios'; // <-- import
+import { isAxiosError } from 'axios';
 import type { z } from 'zod';
 
 type RegisterFormData = z.input<typeof registerSchema>;
@@ -39,7 +38,6 @@ function RegisterPage(): React.JSX.Element {
       });
       navigate('/');
     } catch (err: unknown) {
-      // Use the Axios helper to extract a response message without `any`
       const message =
         isAxiosError(err) && err.response?.data?.message
           ? err.response.data.message
@@ -68,9 +66,8 @@ function RegisterPage(): React.JSX.Element {
           {...register('email')}
         />
 
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="new-password"
           error={errors.password?.message}
           {...register('password')}

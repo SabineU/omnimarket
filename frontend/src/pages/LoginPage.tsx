@@ -1,12 +1,13 @@
 // frontend/src/pages/LoginPage.tsx
+// Login form using React Hook Form + Zod (shared loginSchema).
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema } from '@omnimarket/shared';
 import { useAuth } from '../hooks/useAuth';
-import { Input, Button } from '../components/ui';
+import { Input, Button, PasswordInput } from '../components/ui';
 import { useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
-import { isAxiosError } from 'axios'; // <-- import
+import { isAxiosError } from 'axios';
 import type { z } from 'zod';
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -30,7 +31,6 @@ function LoginPage(): React.JSX.Element {
       await login(data.email, data.password);
       navigate('/');
     } catch (err: unknown) {
-      // Use axios helper to extract the error message safely (no `any`)
       const message =
         isAxiosError(err) && err.response?.data?.message
           ? err.response.data.message
@@ -52,9 +52,9 @@ function LoginPage(): React.JSX.Element {
           {...register('email')}
         />
 
-        <Input
+        {/* PasswordInput with eye toggle */}
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="current-password"
           error={errors.password?.message}
           {...register('password')}
