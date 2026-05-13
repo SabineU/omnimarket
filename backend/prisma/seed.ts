@@ -23,6 +23,14 @@ const prisma = new PrismaClient({ adapter });
 async function main(): Promise<void> {
   console.log('🌱 Seeding OmniMarket database...');
 
+  // ---------------------------------------------------------------------------
+  // 0. Clean up old demo products so the new image URLs take effect
+  // ---------------------------------------------------------------------------
+  await prisma.productImage.deleteMany({});
+  await prisma.productVariation.deleteMany({});
+  await prisma.product.deleteMany({});
+  console.log('🧹 Old products cleaned');
+
   // -------------------------------------------------------------------
   // 1. Create test users (customer, seller, admin)
   // -------------------------------------------------------------------
@@ -146,7 +154,7 @@ async function main(): Promise<void> {
 
   // -------------------------------------------------------------------
   // 3. Create demo products with variations and images
-  //    We don't need the return values, so we just execute the upserts.
+  //    All image URLs now use picsum.photos, a reliable placeholder service.
   // -------------------------------------------------------------------
   await prisma.product.upsert({
     where: { slug: 'macbook-pro-16' },
@@ -163,12 +171,12 @@ async function main(): Promise<void> {
       images: {
         create: [
           {
-            url: 'https://via.placeholder.com/800?text=MacBook+Pro+1',
+            url: 'https://picsum.photos/seed/macbook1/800',
             altText: 'MacBook Pro front view',
             sortOrder: 0,
           },
           {
-            url: 'https://via.placeholder.com/800?text=MacBook+Pro+2',
+            url: 'https://picsum.photos/seed/macbook2/800',
             altText: 'MacBook Pro side view',
             sortOrder: 1,
           },
@@ -208,7 +216,7 @@ async function main(): Promise<void> {
       images: {
         create: [
           {
-            url: 'https://via.placeholder.com/800?text=T-Shirt+1',
+            url: 'https://picsum.photos/seed/tshirt1/800',
             altText: 'T-Shirt front',
             sortOrder: 0,
           },
@@ -257,7 +265,7 @@ async function main(): Promise<void> {
       images: {
         create: [
           {
-            url: 'https://via.placeholder.com/800?text=Garden+Chair+1',
+            url: 'https://picsum.photos/seed/garden1/800',
             altText: 'Garden chair set in garden',
             sortOrder: 0,
           },

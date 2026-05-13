@@ -2,9 +2,26 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider } from './contexts/ThemeProvider.tsx';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from './contexts/ThemeProvider';
 import App from './App.tsx';
 import './index.css';
+
+// Create a QueryClient with global defaults
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Data is considered fresh for 1 minute before a background refetch
+      staleTime: 1 * 60 * 1000,
+      // Retry failed requests once before showing an error
+      retry: 1,
+      // Keep cached data for 5 minutes after the component using it unmounts
+      gcTime: 5 * 60 * 1000,
+      // Don't refetch on window focus in development (less noise)
+      refetchOnWindowFocus: import.meta.env.PROD,
+    },
+  },
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,10 +32,12 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ThemeProvider>
+    </QueryClientProvider>
   </StrictMode>,
 );

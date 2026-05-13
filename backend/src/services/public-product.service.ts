@@ -9,7 +9,7 @@ import type { Prisma } from '@prisma/client';
 export type PublicProduct = Product & {
   images: ProductImage[];
   variations: ProductVariation[];
-  seller: { storeName: string; id: string };
+  seller: { storeName: string; id: string }; // we map userId → id ourselves
   averageRating: number | null;
   reviewCount: number;
 };
@@ -65,9 +65,7 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
     const categoryWithDescendants = await prisma.category.findUnique({
       where: { slug: options.category },
       include: {
-        children: {
-          include: { children: true },
-        },
+        children: { include: { children: true } },
       },
     });
 
@@ -77,12 +75,7 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
     } else {
       return {
         products: [],
-        pagination: {
-          currentPage: page,
-          totalPages: 1,
-          totalItems: 0,
-          limit,
-        },
+        pagination: { currentPage: page, totalPages: 1, totalItems: 0, limit },
       };
     }
   }
@@ -122,19 +115,34 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
       include: {
         images: true,
         variations: true,
-        seller: { select: { id: true, storeName: true } },
-        reviews: { select: { rating: true } },
+        seller: {
+          select: {
+            userId: true, // <-- use userId instead of id
+            storeName: true,
+          },
+        },
+        reviews: {
+          select: { rating: true },
+        },
       },
     }),
     prisma.product.count({ where }),
   ]);
 
   const productsWithRating: PublicProduct[] = products.map((product) => {
-    const { reviews, ...rest } = product;
+    const { reviews, seller, ...rest } = product;
     const reviewCount = reviews.length;
     const averageRating =
       reviewCount > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount : null;
-    return { ...rest, averageRating, reviewCount };
+    return {
+      ...rest,
+      seller: {
+        id: seller.userId, // map userId → id
+        storeName: seller.storeName,
+      },
+      averageRating,
+      reviewCount,
+    };
   });
 
   return {
@@ -150,8 +158,6 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
 
 /**
  * Retrieve a single product by its URL‑friendly slug.
- * Includes images, variations, seller info, and review statistics.
- * Throws a generic error if the slug is not found.
  */
 export async function getProductBySlug(slug: string): Promise<PublicProduct> {
   const product = await prisma.product.findUnique({
@@ -160,7 +166,10 @@ export async function getProductBySlug(slug: string): Promise<PublicProduct> {
       images: { orderBy: { sortOrder: 'asc' } },
       variations: true,
       seller: {
-        select: { id: true, storeName: true },
+        select: {
+          userId: true, // <-- use userId instead of id
+          storeName: true,
+        },
       },
       reviews: {
         select: { rating: true },
@@ -172,18 +181,22 @@ export async function getProductBySlug(slug: string): Promise<PublicProduct> {
     throw new Error('Product not found');
   }
 
-  // Calculate average rating
-  const { reviews, ...rest } = product;
+  const { reviews, seller, ...rest } = product;
   const reviewCount = reviews.length;
   const averageRating =
     reviewCount > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount : null;
 
-  return { ...rest, averageRating, reviewCount };
+  return {
+    ...rest,
+    seller: {
+      id: seller.userId, // map userId → id
+      storeName: seller.storeName,
+    },
+    averageRating,
+    reviewCount,
+  };
 }
 
-/**
- * Helper: recursively collect all category IDs from a tree node (including itself).
- */
 function collectCategoryIds(category: CategoryNode): string[] {
   const ids = [category.id];
   if (category.children && category.children.length > 0) {
