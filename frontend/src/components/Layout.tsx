@@ -1,18 +1,19 @@
 // frontend/src/components/Layout.tsx
 // Shared layout wrapper for all customer pages.
-// Contains a responsive header (logo, search, nav, cart, dark‑mode toggle)
-// and the common footer.  Now also includes a wishlist link for logged‑in users.
+// Contains a responsive header (logo, autocomplete search, nav, cart,
+// dark‑mode toggle, wishlist) and the common footer.
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
 import { useWishlist } from '../hooks/useWishlist';
+import SearchBar from './SearchBar'; // <-- added
 import MegaMenu from './MegaMenu';
 import Footer from './Footer';
 
 function Layout(): React.JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { count } = useWishlist(); // <-- added
+  const { count } = useWishlist();
   const navigate = useNavigate();
 
   const handleLogout = (): void => {
@@ -34,30 +35,8 @@ function Layout(): React.JSX.Element {
             <span className="text-xl font-bold tracking-tight hidden sm:inline">OmniMarket</span>
           </Link>
 
-          {/* Search bar placeholder */}
-          <div className="flex-1 max-w-md mx-4 hidden md:block">
-            <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search for anything…"
-                data-testid="global-search-input"
-                className="w-full pl-10 pr-4 py-2 rounded-lg text-sm text-neutral-900 placeholder-neutral-400 bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-300 transition-colors"
-              />
-            </div>
-          </div>
+          {/* Autocomplete search bar – replaces the old static input */}
+          <SearchBar />
 
           {/* Right side: nav, dark‑mode toggle, wishlist, cart */}
           <div className="flex items-center gap-4">
