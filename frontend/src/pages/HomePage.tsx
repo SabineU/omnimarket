@@ -19,15 +19,21 @@ function HomePage(): React.JSX.Element {
       {/* ================================================================ */}
       {/* Hero Section                                                      */}
       {/* ================================================================ */}
-      <section className="relative bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-2xl overflow-hidden mb-12">
+      <section
+        className="relative bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-2xl overflow-hidden mb-12"
+        data-testid="hero-section"
+      >
         <div className="px-8 py-16 md:py-24 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+          <h1
+            className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4"
+            data-testid="hero-title"
+          >
             Many worlds, one place.
           </h1>
           <p className="text-lg md:text-xl text-primary-100 max-w-2xl mx-auto mb-8">
             Discover millions of products from thousands of sellers — all in one marketplace.
           </p>
-          <Link to="/products">
+          <Link to="/products" data-testid="shop-now-link">
             <Button
               variant="outline"
               size="lg"
@@ -42,7 +48,7 @@ function HomePage(): React.JSX.Element {
       {/* ================================================================ */}
       {/* Category Cards                                                    */}
       {/* ================================================================ */}
-      <section className="mb-12">
+      <section className="mb-12" data-testid="category-section">
         <h2 className="text-2xl font-bold mb-6 text-neutral-900 dark:text-neutral-100">
           Shop by Category
         </h2>
@@ -57,7 +63,12 @@ function HomePage(): React.JSX.Element {
         {catData && catData.data.categories.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {catData.data.categories.slice(0, 12).map((cat) => (
-              <Link key={cat.id} to={`/products?category=${cat.slug}`} className="group">
+              <Link
+                key={cat.id}
+                to={`/products?category=${cat.slug}`}
+                className="group"
+                data-testid={`category-card-${cat.slug}`}
+              >
                 <Card className="h-full flex flex-col items-center justify-center text-center p-4 transition-shadow hover:shadow-lg cursor-pointer">
                   {/* Placeholder icon – could be an image later */}
                   <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center mb-3">
@@ -82,7 +93,7 @@ function HomePage(): React.JSX.Element {
       {/* ================================================================ */}
       {/* Featured Products                                                 */}
       {/* ================================================================ */}
-      <section>
+      <section data-testid="featured-section">
         <h2 className="text-2xl font-bold mb-6 text-neutral-900 dark:text-neutral-100">
           Featured Products
         </h2>
@@ -97,7 +108,11 @@ function HomePage(): React.JSX.Element {
         {featuredData && featuredData.data.products.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {featuredData.data.products.map((product) => (
-              <Link key={product.id} to={`/products/${product.slug}`}>
+              <Link
+                key={product.id}
+                to={`/products/${product.slug}`}
+                data-testid={`featured-product-${product.slug}`}
+              >
                 <Card className="h-full flex flex-col">
                   {product.images[0] && (
                     <img

@@ -49,6 +49,7 @@ function LoginPage(): React.JSX.Element {
           type="email"
           autoComplete="email"
           error={errors.email?.message}
+          data-testid="login-email-input"
           {...register('email')}
         />
 
@@ -57,19 +58,29 @@ function LoginPage(): React.JSX.Element {
           label="Password"
           autoComplete="current-password"
           error={errors.password?.message}
+          data-testid="login-password-input"
           {...register('password')}
         />
 
         {serverError && <p className="text-sm text-error-600 dark:text-error-400">{serverError}</p>}
 
-        <Button type="submit" loading={isSubmitting} className="w-full">
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          className="w-full"
+          data-testid="login-submit-button"
+        >
           Sign in
         </Button>
       </form>
 
       <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
         Don’t have an account?{' '}
-        <Link to="/register" className="text-primary-600 hover:underline font-medium">
+        <Link
+          to="/register"
+          className="text-primary-600 hover:underline font-medium"
+          data-testid="register-link"
+        >
           Create one
         </Link>
       </p>

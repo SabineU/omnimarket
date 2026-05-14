@@ -21,10 +21,13 @@ function Layout(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex flex-col">
       {/* ---- Header ---- */}
-      <header className="bg-primary-600 text-white shadow-md sticky top-0 z-50">
+      <header
+        className="bg-primary-600 text-white shadow-md sticky top-0 z-50"
+        data-testid="site-header"
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 gap-4">
           {/* Logo + brand name */}
-          <Link to="/" className="flex items-center gap-3 shrink-0">
+          <Link to="/" className="flex items-center gap-3 shrink-0" data-testid="logo-link">
             <img src="/logo.png" alt="OmniMarket" className="h-10 w-auto" />
             <span className="text-xl font-bold tracking-tight hidden sm:inline">OmniMarket</span>
           </Link>
@@ -48,6 +51,7 @@ function Layout(): React.JSX.Element {
               <input
                 type="text"
                 placeholder="Search for anything…"
+                data-testid="global-search-input"
                 className="w-full pl-10 pr-4 py-2 rounded-lg text-sm text-neutral-900 placeholder-neutral-400 bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-300 transition-colors"
               />
             </div>
@@ -55,8 +59,15 @@ function Layout(): React.JSX.Element {
 
           {/* Right side: nav, dark‑mode toggle, cart */}
           <div className="flex items-center gap-4">
-            <nav className="hidden space-x-5 text-sm font-medium md:flex items-center">
-              <Link to="/" className="hover:text-primary-200 transition-colors">
+            <nav
+              className="hidden space-x-5 text-sm font-medium md:flex items-center"
+              data-testid="main-navigation"
+            >
+              <Link
+                to="/"
+                className="hover:text-primary-200 transition-colors"
+                data-testid="nav-home"
+              >
                 Home
               </Link>
 
@@ -66,21 +77,34 @@ function Layout(): React.JSX.Element {
               {/* Auth‑dependent links */}
               {user ? (
                 <>
-                  <Link to="/profile" className="hover:text-primary-200 transition-colors">
+                  <Link
+                    to="/profile"
+                    className="hover:text-primary-200 transition-colors"
+                    data-testid="nav-profile"
+                  >
                     Profile
                   </Link>
-                  <Link to="/orders" className="hover:text-primary-200 transition-colors">
+                  <Link
+                    to="/orders"
+                    className="hover:text-primary-200 transition-colors"
+                    data-testid="nav-orders"
+                  >
                     Orders
                   </Link>
                   <button
                     onClick={handleLogout}
                     className="hover:text-primary-200 transition-colors text-sm font-medium"
+                    data-testid="nav-logout"
                   >
                     Logout
                   </button>
                 </>
               ) : (
-                <Link to="/login" className="hover:text-primary-200 transition-colors">
+                <Link
+                  to="/login"
+                  className="hover:text-primary-200 transition-colors"
+                  data-testid="nav-login"
+                >
                   Login
                 </Link>
               )}
@@ -91,6 +115,7 @@ function Layout(): React.JSX.Element {
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-primary-500 transition-colors"
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              data-testid="dark-mode-toggle"
             >
               {theme === 'dark' ? (
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,6 +143,7 @@ function Layout(): React.JSX.Element {
               to="/cart"
               className="relative p-2 rounded-full hover:bg-primary-500 transition-colors"
               aria-label="Shopping cart"
+              data-testid="cart-link"
             >
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -127,7 +153,10 @@ function Layout(): React.JSX.Element {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
                 />
               </svg>
-              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full">
+              <span
+                className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full"
+                data-testid="cart-count"
+              >
                 0
               </span>
             </Link>

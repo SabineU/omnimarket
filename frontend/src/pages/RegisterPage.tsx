@@ -55,6 +55,7 @@ function RegisterPage(): React.JSX.Element {
           label="Full name"
           autoComplete="name"
           error={errors.name?.message}
+          data-testid="register-name-input"
           {...register('name')}
         />
 
@@ -63,6 +64,7 @@ function RegisterPage(): React.JSX.Element {
           type="email"
           autoComplete="email"
           error={errors.email?.message}
+          data-testid="register-email-input"
           {...register('email')}
         />
 
@@ -70,6 +72,7 @@ function RegisterPage(): React.JSX.Element {
           label="Password"
           autoComplete="new-password"
           error={errors.password?.message}
+          data-testid="register-password-input"
           {...register('password')}
         />
 
@@ -77,14 +80,23 @@ function RegisterPage(): React.JSX.Element {
 
         {serverError && <p className="text-sm text-error-600 dark:text-error-400">{serverError}</p>}
 
-        <Button type="submit" loading={isSubmitting} className="w-full">
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          className="w-full"
+          data-testid="register-submit-button"
+        >
           Create account
         </Button>
       </form>
 
       <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
         Already have an account?{' '}
-        <Link to="/login" className="text-primary-600 hover:underline font-medium">
+        <Link
+          to="/login"
+          className="text-primary-600 hover:underline font-medium"
+          data-testid="login-link"
+        >
           Sign in
         </Link>
       </p>

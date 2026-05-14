@@ -38,6 +38,7 @@ function MegaMenu(): React.JSX.Element {
         className="hover:text-primary-200 transition-colors text-sm font-medium flex items-center gap-1"
         aria-expanded={isOpen}
         aria-haspopup="true"
+        data-testid="mega-menu-trigger"
       >
         Shop
         <svg
@@ -55,6 +56,7 @@ function MegaMenu(): React.JSX.Element {
           className="absolute right-0 top-full mt-2 w-72 md:w-80 bg-white dark:bg-neutral-800 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-700 z-50 p-4"
           onMouseEnter={show}
           onMouseLeave={hide}
+          data-testid="mega-menu-dropdown"
         >
           {isLoading && (
             <div className="flex justify-center py-4">
@@ -72,6 +74,7 @@ function MegaMenu(): React.JSX.Element {
                     to={`/products?category=${cat.slug}`}
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 text-sm rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-primary-50 dark:hover:bg-primary-900 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                    data-testid={`mega-menu-category-${cat.slug}`}
                   >
                     {cat.name}
                   </Link>

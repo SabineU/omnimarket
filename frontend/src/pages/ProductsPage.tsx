@@ -60,6 +60,7 @@ function ProductsPage(): React.JSX.Element {
               placeholder="Search products…"
               value={search || ''}
               onChange={(e) => updateFilter('search', e.target.value || undefined)}
+              data-testid="product-search-input"
             />
           </div>
 
@@ -78,6 +79,7 @@ function ProductsPage(): React.JSX.Element {
                   label: cat.name,
                 })) ?? []),
               ]}
+              data-testid="category-filter-select"
             />
           </div>
 
@@ -92,12 +94,14 @@ function ProductsPage(): React.JSX.Element {
                 placeholder="Min"
                 value={minPrice ?? ''}
                 onChange={(e) => updateFilter('minPrice', e.target.value || undefined)}
+                data-testid="price-min-input"
               />
               <Input
                 type="number"
                 placeholder="Max"
                 value={maxPrice ?? ''}
                 onChange={(e) => updateFilter('maxPrice', e.target.value || undefined)}
+                data-testid="price-max-input"
               />
             </div>
           </div>
@@ -117,6 +121,7 @@ function ProductsPage(): React.JSX.Element {
                 { value: 'name_asc', label: 'Name: A‑Z' },
                 { value: 'name_desc', label: 'Name: Z‑A' },
               ]}
+              data-testid="sort-select"
             />
           </div>
 
@@ -126,6 +131,7 @@ function ProductsPage(): React.JSX.Element {
             size="sm"
             className="w-full"
             onClick={() => setSearchParams({})}
+            data-testid="clear-filters-button"
           >
             Clear Filters
           </Button>
@@ -155,9 +161,16 @@ function ProductsPage(): React.JSX.Element {
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
                 Showing {productsData.data.pagination.totalItems} product(s)
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"
+                data-testid="product-grid"
+              >
                 {productsData.data.products.map((product) => (
-                  <Link key={product.id} to={`/products/${product.slug}`}>
+                  <Link
+                    key={product.id}
+                    to={`/products/${product.slug}`}
+                    data-testid={`product-card-${product.slug}`}
+                  >
                     <Card className="h-full flex flex-col">
                       {product.images[0] && (
                         <img
@@ -184,16 +197,23 @@ function ProductsPage(): React.JSX.Element {
 
               {/* ---- Pagination ---- */}
               {productsData.data.pagination.totalPages > 1 && (
-                <div className="flex justify-center items-center gap-4 mt-8">
+                <div
+                  className="flex justify-center items-center gap-4 mt-8"
+                  data-testid="pagination-controls"
+                >
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={page <= 1}
                     onClick={() => updateFilter('page', String(page - 1))}
+                    data-testid="pagination-previous"
                   >
                     Previous
                   </Button>
-                  <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                  <span
+                    className="text-sm text-neutral-600 dark:text-neutral-400"
+                    data-testid="pagination-info"
+                  >
                     Page {page} of {productsData.data.pagination.totalPages}
                   </span>
                   <Button
@@ -201,6 +221,7 @@ function ProductsPage(): React.JSX.Element {
                     size="sm"
                     disabled={page >= productsData.data.pagination.totalPages}
                     onClick={() => updateFilter('page', String(page + 1))}
+                    data-testid="pagination-next"
                   >
                     Next
                   </Button>

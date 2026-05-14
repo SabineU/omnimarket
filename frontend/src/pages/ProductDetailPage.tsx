@@ -101,7 +101,10 @@ function ProductDetailPage(): React.JSX.Element {
         {/* ================================================================ */}
         <div>
           {/* Main image */}
-          <div className="aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 mb-4">
+          <div
+            className="aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 mb-4"
+            data-testid="product-main-image"
+          >
             <img
               src={mainImage?.url ?? 'https://picsum.photos/seed/fallback/600'}
               alt={mainImage?.altText ?? product.name}
@@ -114,11 +117,12 @@ function ProductDetailPage(): React.JSX.Element {
 
           {/* Thumbnails */}
           {product.images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto" data-testid="product-thumbnails">
               {product.images.map((img, index) => (
                 <button
                   key={img.id}
                   onClick={() => setSelectedImageIndex(index)}
+                  data-testid={`product-thumbnail-${index}`}
                   className={`w-20 h-20 rounded-lg border-2 overflow-hidden shrink-0 transition-colors ${
                     index === selectedImageIndex
                       ? 'border-primary-500'
@@ -178,8 +182,9 @@ function ProductDetailPage(): React.JSX.Element {
           {/* ---- Variation Selector ---- */}
           {product.variations.length > 0 && (
             <div className="mt-6 space-y-4">
+              {/* Size selector */}
               {product.variations.some((v) => v.size) && (
-                <div>
+                <div data-testid="size-selector">
                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Size
                   </label>
@@ -190,6 +195,7 @@ function ProductDetailPage(): React.JSX.Element {
                         <button
                           key={v.id}
                           onClick={() => setSelectedVariationId(v.id)}
+                          data-testid={`size-option-${v.size}`}
                           className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                             selectedVariationId === v.id
                               ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
@@ -203,8 +209,9 @@ function ProductDetailPage(): React.JSX.Element {
                 </div>
               )}
 
+              {/* Color selector */}
               {product.variations.some((v) => v.color) && (
-                <div>
+                <div data-testid="color-selector">
                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Color
                   </label>
@@ -215,6 +222,7 @@ function ProductDetailPage(): React.JSX.Element {
                         <button
                           key={v.id}
                           onClick={() => setSelectedVariationId(v.id)}
+                          data-testid={`color-option-${v.color}`}
                           className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                             selectedVariationId === v.id
                               ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
@@ -240,6 +248,7 @@ function ProductDetailPage(): React.JSX.Element {
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
                 label="Qty"
+                data-testid="product-quantity-input"
               />
             </div>
 
@@ -249,11 +258,12 @@ function ProductDetailPage(): React.JSX.Element {
                 loading={addToCart.isPending}
                 className="flex-1"
                 size="lg"
+                data-testid="add-to-cart-button"
               >
                 {addedToCart ? '✓ Added!' : 'Add to Cart'}
               </Button>
             ) : (
-              <Link to="/login" className="flex-1">
+              <Link to="/login" className="flex-1" data-testid="login-to-add-to-cart-link">
                 <Button variant="outline" className="w-full" size="lg">
                   Login to Add to Cart
                 </Button>

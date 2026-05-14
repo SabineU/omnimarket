@@ -11,7 +11,10 @@ function ProtectedRoute(): React.JSX.Element {
   // 1. Auth state is still being determined – show a loading spinner
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[50vh]">
+      <div
+        className="flex justify-center items-center min-h-[50vh]"
+        data-testid="protected-route-spinner"
+      >
         <Spinner size="h-8 w-8" color="text-primary-600" />
       </div>
     );
