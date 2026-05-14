@@ -1,7 +1,11 @@
 // frontend/src/components/Layout.tsx
+// Shared layout wrapper for all customer pages.
+// Contains a responsive header (logo, search, nav, cart, dark‑mode toggle)
+// and the common footer.
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
+import MegaMenu from './MegaMenu'; // <-- added
 import Footer from './Footer';
 
 function Layout(): React.JSX.Element {
@@ -55,11 +59,11 @@ function Layout(): React.JSX.Element {
               <Link to="/" className="hover:text-primary-200 transition-colors">
                 Home
               </Link>
-              <Link to="/products" className="hover:text-primary-200 transition-colors">
-                Shop
-              </Link>
 
-              {/* ---- Auth‑dependent links ---- */}
+              {/* Mega‑menu replaces the static "Shop" link */}
+              <MegaMenu />
+
+              {/* Auth‑dependent links */}
               {user ? (
                 <>
                   <Link to="/profile" className="hover:text-primary-200 transition-colors">
