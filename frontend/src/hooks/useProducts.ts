@@ -1,7 +1,18 @@
 // frontend/src/hooks/useProducts.ts
-// React Query hook that fetches the public product listing using Axios.
+// React Query hook that fetches the public product listing with filters.
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
+
+/** All filter options accepted by the product listing API */
+export interface ProductFilters {
+  search?: string;
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: string; // price_asc, price_desc, name_asc, name_desc, newest
+  page?: number;
+  limit?: number;
+}
 
 /** Shape of a product returned by GET /api/products */
 interface Product {
@@ -30,21 +41,23 @@ interface ProductsResponse {
 }
 
 /**
- * Fetch a paginated list of products.
- * @param page – current page (default 1)
- * @param search – optional search term
+ * Fetch a paginated, filtered list of products.
+ * All filter values are optional – omitting them uses the API defaults.
  */
-export function useProducts(
-  page: number = 1,
-  search?: string,
-): UseQueryResult<ProductsResponse, Error> {
+export function useProducts(filters: ProductFilters = {}): UseQueryResult<ProductsResponse, Error> {
   return useQuery<ProductsResponse, Error>({
-    queryKey: ['products', { page, search }],
+    // The query key includes all filters so React Query caches each unique combination
+    queryKey: ['products', filters],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('limit', '12');
-      if (search) params.set('search', search);
+
+      if (filters.search) params.set('search', filters.search);
+      if (filters.category) params.set('category', filters.category);
+      if (filters.minPrice !== undefined) params.set('minPrice', String(filters.minPrice));
+      if (filters.maxPrice !== undefined) params.set('maxPrice', String(filters.maxPrice));
+      if (filters.sort) params.set('sort', filters.sort);
+      params.set('page', String(filters.page ?? 1));
+      params.set('limit', String(filters.limit ?? 12));
 
       const { data } = await apiClient.get<ProductsResponse>(`/products?${params.toString()}`);
       return data;
