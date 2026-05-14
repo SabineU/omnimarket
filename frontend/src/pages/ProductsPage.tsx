@@ -1,11 +1,12 @@
 // frontend/src/pages/ProductsPage.tsx
 // Product listing page with search, sidebar filters (category, price, sort),
-// and a paginated product grid.  All filters are stored in the URL search params.
+// and infinite scrolling product grid.  All filters are stored in URL search params.
 import { useSearchParams, Link } from 'react-router-dom';
-import { useProducts, type ProductFilters } from '../hooks/useProducts';
+import { useEffect, useRef, useCallback } from 'react';
+import { useInfiniteProducts, type ProductFilters } from '../hooks/useInfiniteProducts';
 import { useCategories } from '../hooks/useCategories';
 import { Card, Input, Select, Button, Spinner, Breadcrumbs } from '../components/ui';
-import WishlistButton from '../components/WishlistButton'; // <-- added
+import WishlistButton from '../components/WishlistButton';
 
 function ProductsPage(): React.JSX.Element {
   // ---------------------------------------------------------------------------
@@ -19,10 +20,9 @@ function ProductsPage(): React.JSX.Element {
   const minPrice = searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : undefined;
   const maxPrice = searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined;
   const sort = searchParams.get('sort') || 'newest';
-  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
 
-  // Build the filters object for the API hook
-  const filters: ProductFilters = { search, category, minPrice, maxPrice, sort, page };
+  // Build the filters object for the API hook (page is handled by the infinite query)
+  const filters: ProductFilters = { search, category, minPrice, maxPrice, sort, limit: 12 };
 
   // Helper to update a single filter and reset the page to 1
   const updateFilter = (key: string, value: string | undefined): void => {
@@ -39,8 +39,40 @@ function ProductsPage(): React.JSX.Element {
   // ---------------------------------------------------------------------------
   // Data hooks
   // ---------------------------------------------------------------------------
-  const { data: productsData, isLoading, error } = useProducts(filters);
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteProducts(filters);
+
   const { data: categoriesData } = useCategories();
+
+  // Flatten all pages into a single array of products
+  const products = data?.pages.flatMap((page) => page.data.products) ?? [];
+
+  // ---- Infinite scroll sentinel ----
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const handleSentinelIntersection = useCallback(
+    (entries: IntersectionObserverEntry[]): void => {
+      // <-- return type added
+      const [entry] = entries;
+      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(handleSentinelIntersection, {
+      rootMargin: '200px',
+    });
+
+    observer.observe(sentinel);
+    // The cleanup function must have an explicit return type to satisfy ESLint
+    return (): void => observer.disconnect();
+  }, [handleSentinelIntersection]);
 
   return (
     <div>
@@ -139,7 +171,7 @@ function ProductsPage(): React.JSX.Element {
         </aside>
 
         {/* ================================================================ */}
-        {/* Product Grid & Pagination                                         */}
+        {/* Product Grid & Infinite Scroll                                   */}
         {/* ================================================================ */}
         <div className="flex-1">
           {/* Loading */}
@@ -157,23 +189,22 @@ function ProductsPage(): React.JSX.Element {
           )}
 
           {/* Products */}
-          {productsData && productsData.data.products.length > 0 && (
+          {!isLoading && products.length > 0 && (
             <>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-                Showing {productsData.data.pagination.totalItems} product(s)
+                Showing {data?.pages[0]?.data.pagination.totalItems ?? 0} product(s)
               </p>
               <div
                 className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"
                 data-testid="product-grid"
               >
-                {productsData.data.products.map((product) => (
+                {products.map((product) => (
                   <Link
                     key={product.id}
                     to={`/products/${product.slug}`}
                     data-testid={`product-card-${product.slug}`}
                   >
                     <Card className="h-full flex flex-col relative">
-                      {/* Wishlist button */}
                       <div className="absolute top-2 right-2 z-10">
                         <WishlistButton
                           product={{
@@ -208,48 +239,33 @@ function ProductsPage(): React.JSX.Element {
                   </Link>
                 ))}
               </div>
-
-              {/* ---- Pagination ---- */}
-              {productsData.data.pagination.totalPages > 1 && (
-                <div
-                  className="flex justify-center items-center gap-4 mt-8"
-                  data-testid="pagination-controls"
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => updateFilter('page', String(page - 1))}
-                    data-testid="pagination-previous"
-                  >
-                    Previous
-                  </Button>
-                  <span
-                    className="text-sm text-neutral-600 dark:text-neutral-400"
-                    data-testid="pagination-info"
-                  >
-                    Page {page} of {productsData.data.pagination.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= productsData.data.pagination.totalPages}
-                    onClick={() => updateFilter('page', String(page + 1))}
-                    data-testid="pagination-next"
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
             </>
           )}
 
           {/* Empty state */}
-          {productsData && productsData.data.products.length === 0 && (
+          {!isLoading && products.length === 0 && (
             <div className="text-center py-12 text-neutral-500">
               <p className="text-lg font-medium">No products found</p>
               <p className="text-sm mt-1">Try adjusting your filters or search terms.</p>
             </div>
+          )}
+
+          {/* ---- Infinite scroll sentinel & loading indicator ---- */}
+          <div ref={sentinelRef} className="h-4" data-testid="infinite-scroll-sentinel" />
+
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-6" data-testid="loading-more-spinner">
+              <Spinner size="h-6 w-6" />
+            </div>
+          )}
+
+          {!hasNextPage && products.length > 0 && (
+            <p
+              className="text-center text-sm text-neutral-400 py-6"
+              data-testid="all-products-loaded"
+            >
+              You've seen all products!
+            </p>
           )}
         </div>
       </div>
