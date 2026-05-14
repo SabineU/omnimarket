@@ -40,6 +40,12 @@ export default defineConfig({
         'src/hooks/useTheme.ts',
         'src/contexts/ThemeProvider.tsx',
         'src/contexts/theme-context.ts',
+        'src/components/SearchBar.tsx',
+        'src/components/WishlistButton.tsx',
+        'src/contexts/WishlistProvider.tsx',
+        'src/contexts/wishlist-context.ts',
+        'src/hooks/useWishlist.ts',
+        'src/pages/WishlistPage.tsx',
         // 'src/components/ui/PasswordInput.tsx',   // <-- removed until tests are written
         // TODO:
         // 'src/components/Layout.tsx',
