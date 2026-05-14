@@ -1,6 +1,6 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays image gallery, variations, price,
-// and an "Add to Cart" button.
+// and an "Add to Cart" button.  Also includes a wishlist toggle.
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { isAxiosError } from 'axios';
@@ -8,6 +8,7 @@ import { useProduct } from '../hooks/useProduct';
 import { useAddToCart } from '../hooks/useCartMutation';
 import { useAuth } from '../hooks/useAuth';
 import { Button, Input, Spinner, Breadcrumbs } from '../components/ui';
+import WishlistButton from '../components/WishlistButton'; // <-- added
 
 function ProductDetailPage(): React.JSX.Element {
   // ---- All hooks are called unconditionally at the top ----
@@ -238,16 +239,29 @@ function ProductDetailPage(): React.JSX.Element {
             </div>
           )}
 
-          {/* ---- Quantity & Add to Cart ---- */}
-          <div className="mt-6 flex items-center gap-4">
-            <div className="w-24">
+          {/* ---- Quantity, Wishlist, Add to Cart ---- */}
+          <div className="mt-6 flex items-center gap-4 flex-wrap">
+            {/* Wishlist button (full size) */}
+            <WishlistButton
+              compact={false}
+              product={{
+                id: product.id,
+                name: product.name,
+                slug: product.slug,
+                basePrice: currentPrice,
+                imageUrl: product.images[0]?.url ?? null,
+              }}
+            />
+
+            <div className="w-20">
               <Input
                 type="number"
                 min={1}
                 max={99}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                label="Qty"
+                // Use a small "Qty" icon prefix instead of a label – keeps alignment
+                icon={<span className="text-xs font-medium text-neutral-400">Qty</span>}
                 data-testid="product-quantity-input"
               />
             </div>

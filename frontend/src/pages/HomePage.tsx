@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 import { useCategories } from '../hooks/useCategories';
 import { useFeaturedProducts } from '../hooks/useFeaturedProducts';
 import { Card, Button, Spinner } from '../components/ui';
+import WishlistButton from '../components/WishlistButton'; // <-- added
 
 function HomePage(): React.JSX.Element {
   const { data: catData, isLoading: catLoading, error: catError } = useCategories();
-
   const {
     data: featuredData,
     isLoading: featuredLoading,
@@ -113,7 +113,20 @@ function HomePage(): React.JSX.Element {
                 to={`/products/${product.slug}`}
                 data-testid={`featured-product-${product.slug}`}
               >
-                <Card className="h-full flex flex-col">
+                <Card className="h-full flex flex-col relative">
+                  {/* Wishlist button */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <WishlistButton
+                      product={{
+                        id: product.id,
+                        name: product.name,
+                        slug: product.slug,
+                        basePrice: Number(product.basePrice),
+                        imageUrl: product.images[0]?.url ?? null,
+                      }}
+                      compact
+                    />
+                  </div>
                   {product.images[0] && (
                     <img
                       src={product.images[0].url}

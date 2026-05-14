@@ -5,6 +5,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useProducts, type ProductFilters } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import { Card, Input, Select, Button, Spinner, Breadcrumbs } from '../components/ui';
+import WishlistButton from '../components/WishlistButton'; // <-- added
 
 function ProductsPage(): React.JSX.Element {
   // ---------------------------------------------------------------------------
@@ -171,7 +172,20 @@ function ProductsPage(): React.JSX.Element {
                     to={`/products/${product.slug}`}
                     data-testid={`product-card-${product.slug}`}
                   >
-                    <Card className="h-full flex flex-col">
+                    <Card className="h-full flex flex-col relative">
+                      {/* Wishlist button */}
+                      <div className="absolute top-2 right-2 z-10">
+                        <WishlistButton
+                          product={{
+                            id: product.id,
+                            name: product.name,
+                            slug: product.slug,
+                            basePrice: Number(product.basePrice),
+                            imageUrl: product.images[0]?.url ?? null,
+                          }}
+                          compact
+                        />
+                      </div>
                       {product.images[0] && (
                         <img
                           src={product.images[0].url}

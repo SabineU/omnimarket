@@ -1,16 +1,18 @@
 // frontend/src/components/Layout.tsx
 // Shared layout wrapper for all customer pages.
 // Contains a responsive header (logo, search, nav, cart, dark‑mode toggle)
-// and the common footer.
+// and the common footer.  Now also includes a wishlist link for logged‑in users.
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
-import MegaMenu from './MegaMenu'; // <-- added
+import { useWishlist } from '../hooks/useWishlist';
+import MegaMenu from './MegaMenu';
 import Footer from './Footer';
 
 function Layout(): React.JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  const { count } = useWishlist(); // <-- added
   const navigate = useNavigate();
 
   const handleLogout = (): void => {
@@ -57,7 +59,7 @@ function Layout(): React.JSX.Element {
             </div>
           </div>
 
-          {/* Right side: nav, dark‑mode toggle, cart */}
+          {/* Right side: nav, dark‑mode toggle, wishlist, cart */}
           <div className="flex items-center gap-4">
             <nav
               className="hidden space-x-5 text-sm font-medium md:flex items-center"
@@ -70,11 +72,7 @@ function Layout(): React.JSX.Element {
               >
                 Home
               </Link>
-
-              {/* Mega‑menu replaces the static "Shop" link */}
               <MegaMenu />
-
-              {/* Auth‑dependent links */}
               {user ? (
                 <>
                   <Link
@@ -137,6 +135,30 @@ function Layout(): React.JSX.Element {
                 </svg>
               )}
             </button>
+
+            {/* Wishlist link (only when logged in) */}
+            {user && (
+              <Link
+                to="/wishlist"
+                className="relative p-2 rounded-full hover:bg-primary-500 transition-colors"
+                aria-label="Wishlist"
+                data-testid="wishlist-link"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
+                {count > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Cart icon */}
             <Link
