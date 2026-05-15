@@ -1,20 +1,28 @@
 // frontend/src/components/Layout.tsx
 // Shared layout wrapper for all customer pages.
-// Contains a responsive header (logo, autocomplete search, nav, cart,
-// dark‑mode toggle, wishlist) and the common footer.
+// Contains a responsive header (logo, search, nav, cart drawer, dark‑mode toggle,
+// wishlist) and the common footer.  The cart badge now shows the live item count.
+import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
 import { useWishlist } from '../hooks/useWishlist';
-import SearchBar from './SearchBar'; // <-- added
+import { useCart } from '../hooks/useCart'; // <-- added
+import SearchBar from './SearchBar';
 import MegaMenu from './MegaMenu';
+import CartDrawer from './CartDrawer';
 import Footer from './Footer';
 
 function Layout(): React.JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { count } = useWishlist();
+  const { count: wishlistCount } = useWishlist();
+  const { data: cartData } = useCart(); // <-- added
   const navigate = useNavigate();
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Compute total quantity of items in the cart
+  const cartCount = cartData?.data.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   const handleLogout = (): void => {
     logout();
@@ -25,7 +33,7 @@ function Layout(): React.JSX.Element {
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex flex-col">
       {/* ---- Header ---- */}
       <header
-        className="bg-primary-600 text-white shadow-md sticky top-0 z-50"
+        className="bg-primary-600 text-white shadow-md sticky top-0 z-40"
         data-testid="site-header"
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 gap-4">
@@ -35,10 +43,10 @@ function Layout(): React.JSX.Element {
             <span className="text-xl font-bold tracking-tight hidden sm:inline">OmniMarket</span>
           </Link>
 
-          {/* Autocomplete search bar – replaces the old static input */}
+          {/* Autocomplete search bar */}
           <SearchBar />
 
-          {/* Right side: nav, dark‑mode toggle, wishlist, cart */}
+          {/* Right side: nav, dark‑mode toggle, wishlist, cart drawer trigger */}
           <div className="flex items-center gap-4">
             <nav
               className="hidden space-x-5 text-sm font-medium md:flex items-center"
@@ -131,17 +139,17 @@ function Layout(): React.JSX.Element {
                     d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
                   />
                 </svg>
-                {count > 0 && (
+                {wishlistCount > 0 && (
                   <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full">
-                    {count}
+                    {wishlistCount}
                   </span>
                 )}
               </Link>
             )}
 
-            {/* Cart icon */}
-            <Link
-              to="/cart"
+            {/* Cart drawer trigger */}
+            <button
+              onClick={() => setIsCartOpen(true)}
               className="relative p-2 rounded-full hover:bg-primary-500 transition-colors"
               aria-label="Shopping cart"
               data-testid="cart-link"
@@ -154,13 +162,16 @@ function Layout(): React.JSX.Element {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
                 />
               </svg>
-              <span
-                className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full"
-                data-testid="cart-count"
-              >
-                0
-              </span>
-            </Link>
+              {/* Badge with live count – hidden when the cart is empty */}
+              {cartCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-error-500 rounded-full"
+                  data-testid="cart-count"
+                >
+                  {cartCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -170,6 +181,9 @@ function Layout(): React.JSX.Element {
       </main>
 
       <Footer />
+
+      {/* Cart drawer (slides in from the right) */}
+      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </div>
   );
 }
