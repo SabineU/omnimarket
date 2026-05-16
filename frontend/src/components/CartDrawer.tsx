@@ -1,6 +1,9 @@
 // frontend/src/components/CartDrawer.tsx
 // A slide‑in cart drawer that displays the user's shopping cart.
-// Now with quantity stepper (+/−) and remove item button.
+// Now with quantity stepper (+/−), remove item button, and a
+// "View Cart" link to the full cart page.
+// FIXED: replaced invalid <a><button> nesting with <Link> styled
+// as a button, which solves the spacing overlap issue.
 import { Link } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
@@ -265,17 +268,32 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps): React.JSX.Element | n
 
         {/* ---- Footer (subtotal + checkout) ---- */}
         {user && cartItems.length > 0 && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 px-5 py-4 space-y-3">
+          <div className="border-t border-neutral-200 dark:border-neutral-700 px-5 py-4 space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-neutral-600 dark:text-neutral-400">Subtotal</span>
               <span className="font-bold text-lg text-neutral-900 dark:text-neutral-100">
                 ${subtotal.toFixed(2)}
               </span>
             </div>
-            <Link to="/checkout" onClick={onClose}>
-              <Button className="w-full" size="lg" data-testid="cart-checkout-button">
-                Proceed to Checkout
-              </Button>
+
+            {/* "View Cart" link – styled as an outlined button */}
+            <Link
+              to="/cart"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-primary-600 text-primary-600 hover:bg-primary-50 focus:ring-primary-500 dark:border-primary-400 dark:text-primary-400 dark:hover:bg-primary-950 px-5 py-2.5 text-base w-full"
+              data-testid="cart-drawer-view-cart"
+            >
+              View Cart
+            </Link>
+
+            {/* "Proceed to Checkout" link – styled as a primary button */}
+            <Link
+              to="/checkout"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm bg-primary-600 hover:bg-primary-700 focus:ring-primary-500 text-white dark:bg-primary-500 dark:hover:bg-primary-600 px-7 py-3 text-lg w-full"
+              data-testid="cart-checkout-button"
+            >
+              Proceed to Checkout
             </Link>
           </div>
         )}
