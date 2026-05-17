@@ -1,7 +1,7 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays a single product with image gallery,
 // description, price, and add-to-cart functionality.
-// Now shows feedback (alert for now) when adding to cart succeeds or fails.
+// Now uses toast notifications instead of alert().
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
@@ -163,22 +163,13 @@ function ProductDetailPage(): React.JSX.Element {
       return;
     }
 
-    addToCart.mutate(
-      {
-        productId: product.id,
-        variationId: effectiveVariationId,
-        quantity,
-      },
-      {
-        onSuccess: () => {
-          alert('Item added to cart!');
-        },
-        onError: (err) => {
-          alert(`Failed to add item: ${err.message}`);
-          console.error('Add to cart error:', err);
-        },
-      },
-    );
+    // Fire the mutation – the hook itself handles success/error toasts,
+    // so we don't need callbacks here for basic feedback.
+    addToCart.mutate({
+      productId: product.id,
+      variationId: effectiveVariationId,
+      quantity,
+    });
   };
 
   const basePriceNum = toNumber(product.basePrice);
@@ -189,8 +180,6 @@ function ProductDetailPage(): React.JSX.Element {
     ? basePriceNum + toNumber(selectedVariation.priceModifier)
     : basePriceNum;
 
-  // Button disabled only if user is logged in and there are variations but none is
-  // available/selected (shouldn't happen thanks to the fallback, but keep defensive).
   const isAddToCartDisabled = !!(
     user &&
     product.variations.length > 0 &&

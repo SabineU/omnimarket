@@ -10,11 +10,14 @@
 //    explicitly passing the CardElement so Stripe knows which card to charge.
 // 4. Complete the order via the backend, sending the confirmed PaymentIntent ID.
 // 5. Redirect to the order confirmation page.
+//
+// Now uses toast notifications instead of alert().
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import toast from 'react-hot-toast';
 import { useStripe, useElements } from '@stripe/react-stripe-js';
 import type { StripeCardElement } from '@stripe/stripe-js';
 import { useCart } from '../hooks/useCart';
@@ -97,7 +100,7 @@ function CheckoutForm(): React.JSX.Element {
   const onSubmit = async (formData: CheckoutFormValues): Promise<void> => {
     // Guard: Stripe must be loaded and the card element must exist
     if (!stripe || !elements || !cardElementRef.current) {
-      alert('Payment system is still loading. Please wait a moment and try again.');
+      toast.error('Payment system is still loading. Please wait a moment.');
       return;
     }
 
@@ -113,14 +116,10 @@ function CheckoutForm(): React.JSX.Element {
       // ----------------------------------------------------------------
       // STEP 2: Confirm the card payment with Stripe.
       // We MUST pass the card element so Stripe knows which card to charge.
-      // This sends the card details (from the CardElement) directly to Stripe
-      // and handles 3D Secure, fraud checks, etc.  Our server never sees
-      // the raw card number.
       // ----------------------------------------------------------------
       const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
         paymentIntentData.clientSecret,
         {
-          // Explicitly tell Stripe to use the card from our CardElement
           payment_method: {
             card: cardElementRef.current,
           },
@@ -128,14 +127,14 @@ function CheckoutForm(): React.JSX.Element {
       );
 
       if (confirmError) {
-        alert(confirmError.message);
+        // The payment failed (e.g., insufficient funds, declined, incorrect CVC).
+        // confirmError.message may be undefined, so provide a fallback.
+        toast.error(confirmError.message ?? 'Payment failed. Please check your card details.');
         return;
       }
 
       if (!paymentIntent) {
-        alert(
-          'Payment confirmation succeeded but no PaymentIntent was returned. Please try again.',
-        );
+        toast.error('Payment confirmation succeeded but no PaymentIntent was returned.');
         return;
       }
 
@@ -151,13 +150,13 @@ function CheckoutForm(): React.JSX.Element {
             navigate(`/orders/${data.data.order.id}`);
           },
           onError: (err: Error) => {
-            alert(`Payment succeeded but order failed: ${err.message}`);
+            toast.error(`Payment succeeded but order failed: ${err.message}`);
           },
         },
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred';
-      alert(message);
+      toast.error(message);
     }
   };
 

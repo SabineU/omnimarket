@@ -1,7 +1,9 @@
 // frontend/src/hooks/useCartMutation.ts
 // Mutation hook for adding an item to the shopping cart.
 // Calls POST /api/cart/items and invalidates the cart query on success.
+// Now uses toast notifications instead of alert().
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { apiClient } from '../lib/api-client';
 
 /** Payload sent to the backend when adding an item to the cart */
@@ -16,6 +18,7 @@ export interface AddToCartPayload {
  *
  * On success, it invalidates the ['cart'] query so that the
  * cart drawer, badge, and cart page all refetch automatically.
+ * On error, it displays a toast notification with the error message.
  */
 export function useCartMutation(): UseMutationResult<
   { status: string; data: unknown },
@@ -26,20 +29,23 @@ export function useCartMutation(): UseMutationResult<
 
   return useMutation<{ status: string; data: unknown }, Error, AddToCartPayload>({
     mutationFn: async (payload: AddToCartPayload) => {
-      // The backend expects POST /cart/items with the payload
       const { data } = await apiClient.post<{ status: string; data: unknown }>(
         '/cart/items',
         payload,
       );
       return data;
     },
-    // Prefix the unused parameter with underscore to satisfy lint
     onSuccess: (_data) => {
       // Mark the cart query as stale so it refetches in the background
       void queryClient.invalidateQueries({ queryKey: ['cart'] });
+      // Show a success toast (the component can also show its own toast,
+      // but the hook provides a baseline notification)
+      toast.success('Item added to cart!');
     },
     onError: (error) => {
-      // Only use console.error which is allowed by the project's lint rules
+      // Display a user‑friendly error toast
+      toast.error(error.message || 'Failed to add item to cart');
+      // Also log to console for debugging
       console.error('Failed to add item to cart:', error);
     },
   });

@@ -1,8 +1,10 @@
 // frontend/src/pages/CartPage.tsx
 // Full cart page: items grouped by seller, quantity controls,
 // coupon validation, and checkout button.
+// Now uses toast for coupon feedback.
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast'; // <-- added
 import { useCart, type CartItem } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { useUpdateCartItem } from '../hooks/useUpdateCartItem';
@@ -24,85 +26,52 @@ function CartPage(): React.JSX.Element {
   // ---------------------------------------------------------------------------
   // Data & State
   // ---------------------------------------------------------------------------
-
-  // Get the current user (null if not logged in)
   const { user } = useAuth();
-
-  // Fetch the cart from the server
   const { data, isLoading, error } = useCart();
-
-  // Mutations for modifying cart items
   const updateCartItem = useUpdateCartItem();
   const removeCartItem = useRemoveCartItem();
-
-  // Coupon validation mutation
   const validateCoupon = useValidateCoupon();
-
-  // Local state for the applied coupon (null = no coupon applied)
   const [appliedCoupon, setAppliedCoupon] = useState<ValidCoupon | null>(null);
-  // Local state for coupon validation error message
   const [couponError, setCouponError] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
   // Derived Values
   // ---------------------------------------------------------------------------
-
-  // Memoize the cart items array so it only changes when the actual cart data changes.
-  // This prevents the fallback `[]` from being a new reference on every render,
-  // which would cause the useMemo hooks below to recalculate unnecessarily.
   const cartItems: CartItem[] = useMemo(() => data?.data.items ?? [], [data?.data.items]);
 
-  // Group items by sellerId so each seller gets its own section.
-  // A Map is used because it preserves insertion order and gives O(1) lookups.
   const sellerGroups = useMemo(() => {
     const groups = new Map<string, { sellerName: string; items: CartItem[]; subtotal: number }>();
-
     for (const item of cartItems) {
-      // Look up or create the group for this seller
       let group = groups.get(item.sellerId);
       if (!group) {
-        group = {
-          sellerName: item.sellerName,
-          items: [],
-          subtotal: 0,
-        };
+        group = { sellerName: item.sellerName, items: [], subtotal: 0 };
         groups.set(item.sellerId, group);
       }
-      // Add item and increment the seller subtotal
       group.items.push(item);
       group.subtotal += item.lineTotal;
     }
-
     return groups;
   }, [cartItems]);
 
-  // Calculate cart-wide subtotal
   const cartSubtotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.lineTotal, 0),
     [cartItems],
   );
 
-  // Discount amount: recalculated whenever the cart or the applied coupon changes
   const discountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
-
-    // Minimum cart amount not met → no discount
     if (appliedCoupon.minCartAmount !== null && cartSubtotal < appliedCoupon.minCartAmount) {
       return 0;
     }
-
     if (appliedCoupon.discountType === 'PERCENTAGE') {
       return (cartSubtotal * appliedCoupon.discountValue) / 100;
     } else {
-      // FIXED_AMOUNT discount, capped at the subtotal
       return Math.min(appliedCoupon.discountValue, cartSubtotal);
     }
   }, [cartSubtotal, appliedCoupon]);
 
-  // Final total after discount
   const cartTotal = Math.max(0, cartSubtotal - discountAmount);
 
-  // Total number of items (used in the heading)
   const totalItemCount = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
     [cartItems],
@@ -112,23 +81,19 @@ function CartPage(): React.JSX.Element {
   // Handlers
   // ---------------------------------------------------------------------------
 
-  // Increase quantity by 1
   const handleIncrease = (itemId: string, currentQty: number): void => {
     updateCartItem.mutate({ itemId, quantity: currentQty + 1 });
   };
 
-  // Decrease quantity by 1 (minimum is 1)
   const handleDecrease = (itemId: string, currentQty: number): void => {
     if (currentQty <= 1) return;
     updateCartItem.mutate({ itemId, quantity: currentQty - 1 });
   };
 
-  // Remove an item entirely
   const handleRemove = (itemId: string): void => {
     removeCartItem.mutate({ itemId });
   };
 
-  // Apply a coupon code (called from CouponInput)
   const handleApplyCoupon = (code: string): void => {
     setCouponError(null);
     validateCoupon.mutate(
@@ -136,15 +101,16 @@ function CartPage(): React.JSX.Element {
       {
         onSuccess: (coupon) => {
           setAppliedCoupon(coupon);
+          toast.success(`Coupon "${code}" applied!`);
         },
         onError: (err) => {
           setCouponError(err.message);
+          toast.error(err.message);
         },
       },
     );
   };
 
-  // Remove the currently applied coupon
   const handleRemoveCoupon = (): void => {
     setAppliedCoupon(null);
     setCouponError(null);
@@ -197,7 +163,6 @@ function CartPage(): React.JSX.Element {
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        {/* Empty cart icon */}
         <svg
           className="mx-auto h-16 w-16 text-neutral-300 dark:text-neutral-600"
           fill="none"
@@ -229,18 +194,14 @@ function CartPage(): React.JSX.Element {
   // ---------------------------------------------------------------------------
   // Render: Populated Cart
   // ---------------------------------------------------------------------------
-
-  // Convert the Map to an array so we can iterate in the JSX
   const sellerGroupArray = Array.from(sellerGroups.entries());
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8" data-testid="cart-page">
-      {/* Page heading */}
       <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
         Shopping Cart ({totalItemCount})
       </h1>
 
-      {/* Main two‑column layout on desktop, single column on mobile */}
       <div className="mt-6 grid gap-8 lg:grid-cols-3">
         {/* ---- Left column: cart items grouped by seller ---- */}
         <div className="lg:col-span-2 space-y-8" data-testid="cart-items-list">
@@ -250,9 +211,7 @@ function CartPage(): React.JSX.Element {
               className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800"
               data-testid={`cart-seller-group-${sellerId}`}
             >
-              {/* Seller name header */}
               <div className="flex items-center gap-2 mb-4 pb-3 border-b border-neutral-100 dark:border-neutral-700">
-                {/* Store icon */}
                 <svg
                   className="h-5 w-5 text-neutral-400"
                   fill="none"
@@ -274,10 +233,8 @@ function CartPage(): React.JSX.Element {
                 </span>
               </div>
 
-              {/* Items for this seller */}
               <ul className="space-y-4">
                 {group.items.map((item) => {
-                  // Disable controls while a mutation for this item is pending
                   const isUpdating = updateCartItem.isPending;
                   const isRemoving = removeCartItem.isPending;
 
@@ -287,7 +244,6 @@ function CartPage(): React.JSX.Element {
                       className="flex gap-4"
                       data-testid={`cart-item-${item.productId}`}
                     >
-                      {/* Product image */}
                       <Link
                         to={`/products/${item.productId}`}
                         className="w-20 h-20 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-700 shrink-0"
@@ -301,26 +257,19 @@ function CartPage(): React.JSX.Element {
                         )}
                       </Link>
 
-                      {/* Item info and controls */}
                       <div className="flex-1 min-w-0">
-                        {/* Product name (link to detail page) */}
                         <Link
                           to={`/products/${item.productId}`}
                           className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 line-clamp-1"
                         >
                           {item.productName}
                         </Link>
-
-                        {/* Unit price */}
                         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                           ${item.price.toFixed(2)} each
                         </p>
 
-                        {/* Quantity stepper + line total + remove */}
                         <div className="flex items-center justify-between mt-2">
-                          {/* Quantity stepper (same as in CartDrawer) */}
                           <div className="flex items-center gap-1">
-                            {/* Decrease button */}
                             <button
                               type="button"
                               className="h-7 w-7 flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-50"
@@ -343,16 +292,12 @@ function CartPage(): React.JSX.Element {
                                 />
                               </svg>
                             </button>
-
-                            {/* Quantity display */}
                             <span
                               className="inline-flex items-center justify-center w-8 text-sm font-medium text-neutral-900 dark:text-neutral-100"
                               data-testid={`cart-item-quantity-${item.productId}`}
                             >
                               {item.quantity}
                             </span>
-
-                            {/* Increase button */}
                             <button
                               type="button"
                               className="h-7 w-7 flex items-center justify-center rounded border border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-50"
@@ -377,7 +322,6 @@ function CartPage(): React.JSX.Element {
                             </button>
                           </div>
 
-                          {/* Line total + remove button */}
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-semibold text-primary-600">
                               ${item.lineTotal.toFixed(2)}
@@ -390,7 +334,6 @@ function CartPage(): React.JSX.Element {
                               aria-label={`Remove ${item.productName} from cart`}
                               data-testid={`cart-item-remove-${item.productId}`}
                             >
-                              {/* Trash icon */}
                               <svg
                                 className="h-4 w-4"
                                 fill="none"
@@ -413,7 +356,6 @@ function CartPage(): React.JSX.Element {
                 })}
               </ul>
 
-              {/* Seller subtotal */}
               <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-700 text-right">
                 <span className="text-xs text-neutral-500 dark:text-neutral-400">
                   Seller subtotal:{' '}
@@ -428,7 +370,6 @@ function CartPage(): React.JSX.Element {
 
         {/* ---- Right column: coupon + order summary ---- */}
         <div className="space-y-6" data-testid="cart-summary">
-          {/* Coupon code input */}
           <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
             <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">
               Coupon Code
@@ -442,13 +383,11 @@ function CartPage(): React.JSX.Element {
             />
           </div>
 
-          {/* Order summary */}
           <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
             <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">
               Order Summary
             </h3>
 
-            {/* Subtotal row */}
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-neutral-600 dark:text-neutral-400">
                 Subtotal ({totalItemCount} items)
@@ -458,7 +397,6 @@ function CartPage(): React.JSX.Element {
               </span>
             </div>
 
-            {/* Discount row (only visible if a coupon is applied) */}
             {appliedCoupon && (
               <div className="flex items-center justify-between text-sm mb-2">
                 <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
@@ -470,10 +408,8 @@ function CartPage(): React.JSX.Element {
               </div>
             )}
 
-            {/* Divider */}
             <hr className="my-3 border-neutral-200 dark:border-neutral-700" />
 
-            {/* Total row */}
             <div className="flex items-center justify-between text-base font-bold mb-4">
               <span className="text-neutral-900 dark:text-neutral-100">Total</span>
               <span className="text-neutral-900 dark:text-neutral-100">
@@ -481,14 +417,12 @@ function CartPage(): React.JSX.Element {
               </span>
             </div>
 
-            {/* Checkout button */}
             <Link to="/checkout">
               <Button className="w-full" size="lg" data-testid="cart-checkout-button">
                 Proceed to Checkout
               </Button>
             </Link>
 
-            {/* Continue shopping link */}
             <Link
               to="/products"
               className="block mt-3 text-center text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
