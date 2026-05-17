@@ -120,13 +120,6 @@ function OrderDetailPage(): React.JSX.Element {
         <Link to="/orders">
           <Button className="mt-6">View all orders</Button>
         </Link>
-        {/* Debug: show raw response for troubleshooting */}
-        <details className="mt-6 text-left text-xs text-neutral-400 max-w-lg mx-auto">
-          <summary className="cursor-pointer hover:text-neutral-500">Debug: API response</summary>
-          <pre className="mt-2 whitespace-pre-wrap break-words">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </details>
       </div>
     );
   }
@@ -187,10 +180,12 @@ function OrderDetailPage(): React.JSX.Element {
         </dl>
       </div>
 
+      {/* ---- Actions ---- */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <Link to={`/orders/${order.id}`} className="w-full sm:w-auto">
-          <Button variant="outline" className="w-full" data-testid="view-order-details-button">
-            View Full Order
+        {/* Link to order history, not the same page */}
+        <Link to="/orders" className="w-full sm:w-auto">
+          <Button variant="outline" className="w-full" data-testid="view-all-orders-button">
+            View All Orders
           </Button>
         </Link>
         <Link to="/products" className="w-full sm:w-auto">
