@@ -1,9 +1,11 @@
 // frontend/src/pages/OrderDetailPage.tsx
 // Displays the details of a single order after checkout (or from order history).
-// Now includes a visual status tracker and order items list.
+// Now includes a visual status tracker, order items list, and a Cancel Order button
+// for orders that are still in PENDING or CONFIRMED status.
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
+import { useCancelOrder } from '../hooks/useCancelOrder'; // <-- added
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,14 @@ function isPositiveStatus(status: string): boolean {
   return !['CANCELLED', 'RETURNED', 'RETURN_REQUESTED'].includes(status);
 }
 
+/**
+ * Determine if the order can be cancelled by the customer.
+ * Only PENDING and CONFIRMED orders (before the seller ships) are cancellable.
+ */
+function isCancellable(status: string): boolean {
+  return ['PENDING', 'CONFIRMED'].includes(status);
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -107,6 +117,7 @@ function isPositiveStatus(status: string): boolean {
 function OrderDetailPage(): React.JSX.Element {
   const { orderId } = useParams<{ orderId: string }>();
 
+  // Fetch the order details
   const { data, isLoading, error } = useQuery<OrderResponse, Error>({
     queryKey: ['order', orderId],
     queryFn: async () => {
@@ -115,6 +126,9 @@ function OrderDetailPage(): React.JSX.Element {
     },
     enabled: !!orderId,
   });
+
+  // Cancel order mutation
+  const cancelOrder = useCancelOrder();
 
   // ---- Loading state ----
   if (isLoading) {
@@ -174,6 +188,17 @@ function OrderDetailPage(): React.JSX.Element {
       </div>
     );
   }
+
+  // ---- Cancel order handler ----
+  const handleCancelOrder = (): void => {
+    // Ask for confirmation before the destructive action
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this order? This action cannot be undone.',
+    );
+    if (confirmed && orderId) {
+      cancelOrder.mutate(orderId);
+    }
+  };
 
   const currentStepIndex = getCurrentStepIndex(order.status);
 
@@ -402,6 +427,34 @@ function OrderDetailPage(): React.JSX.Element {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* ---- Cancel Order button (only for cancellable orders) ---- */}
+      {isCancellable(order.status) && (
+        <div
+          className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950"
+          data-testid="cancel-order-section"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Need to cancel this order?
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                You can cancel before the seller ships your order.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleCancelOrder}
+              loading={cancelOrder.isPending}
+              className="w-full sm:w-auto border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-950"
+              data-testid="cancel-order-button"
+            >
+              Cancel Order
+            </Button>
+          </div>
         </div>
       )}
 
