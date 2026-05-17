@@ -2,6 +2,14 @@
 // Multi‑step checkout page: Address → Shipping → Payment.
 // Uses React Hook Form for validation, Stripe Elements for card details,
 // and React Query mutations for order creation.
+//
+// COMPLETE STRIPE FLOW:
+// 1. User selects address, reviews shipping, enters card details.
+// 2. On "Place Order": create a PaymentIntent via the backend.
+// 3. Confirm the card payment with Stripe (stripe.confirmCardPayment),
+//    explicitly passing the CardElement so Stripe knows which card to charge.
+// 4. Complete the order via the backend, sending the confirmed PaymentIntent ID.
+// 5. Redirect to the order confirmation page.
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
@@ -11,6 +19,7 @@ import { useStripe, useElements } from '@stripe/react-stripe-js';
 import type { StripeCardElement } from '@stripe/stripe-js';
 import { useCart } from '../hooks/useCart';
 import { useCreateOrder } from '../hooks/useCreateOrder';
+import { useCompleteCheckout, type CompleteCheckoutResponse } from '../hooks/useCompleteCheckout';
 import { Button, Spinner } from '../components/ui';
 import AddressStep from '../components/checkout/AddressStep';
 import ShippingStep from '../components/checkout/ShippingStep';
@@ -40,7 +49,8 @@ function CheckoutForm(): React.JSX.Element {
   const stripe = useStripe();
   const elements = useElements();
 
-  // Ref that will hold the CardElement instance, passed down to PaymentStep
+  // Ref that will hold the CardElement instance, passed down to PaymentStep.
+  // This ref is ONLY read during the submit handler, not during render.
   const cardElementRef = useRef<StripeCardElement | null>(null);
 
   // React Hook Form setup
@@ -58,8 +68,9 @@ function CheckoutForm(): React.JSX.Element {
   const cartItems = cartData?.data.items ?? [];
   const subtotal = cartItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
-  // Order mutation
-  const createOrder = useCreateOrder();
+  // Mutations for the two backend calls
+  const createOrder = useCreateOrder(); // Step 1: creates PaymentIntent
+  const completeCheckout = useCompleteCheckout(); // Step 3: completes the order
 
   // ---- Step navigation ----
 
@@ -69,7 +80,6 @@ function CheckoutForm(): React.JSX.Element {
       // Only validate the address field before advancing from step 0
       isValid = await trigger('addressId');
     } else {
-      // Shipping and Payment have no required fields
       isValid = true;
     }
 
@@ -82,29 +92,73 @@ function CheckoutForm(): React.JSX.Element {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
-  // ---- Final form submission ----
+  // ---- Final form submission (the full Stripe flow) ----
 
   const onSubmit = async (formData: CheckoutFormValues): Promise<void> => {
+    // Guard: Stripe must be loaded and the card element must exist
     if (!stripe || !elements || !cardElementRef.current) {
-      // Stripe hasn't loaded yet – the submit button is disabled in this state
+      alert('Payment system is still loading. Please wait a moment and try again.');
       return;
     }
 
-    // The createOrder mutation sends the address and coupon to the backend.
-    // The backend creates a PaymentIntent, which we then confirm with Stripe.
-    createOrder.mutate(
-      { addressId: formData.addressId },
-      {
-        onSuccess: (data) => {
-          // Redirect to the order confirmation page
-          navigate(`/orders/${data.data.order.id}`);
+    try {
+      // ----------------------------------------------------------------
+      // STEP 1: Create a PaymentIntent via our backend.
+      // This reserves the amount with Stripe and returns a clientSecret.
+      // ----------------------------------------------------------------
+      const paymentIntentData = await createOrder.mutateAsync({
+        addressId: formData.addressId,
+      });
+
+      // ----------------------------------------------------------------
+      // STEP 2: Confirm the card payment with Stripe.
+      // We MUST pass the card element so Stripe knows which card to charge.
+      // This sends the card details (from the CardElement) directly to Stripe
+      // and handles 3D Secure, fraud checks, etc.  Our server never sees
+      // the raw card number.
+      // ----------------------------------------------------------------
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
+        paymentIntentData.clientSecret,
+        {
+          // Explicitly tell Stripe to use the card from our CardElement
+          payment_method: {
+            card: cardElementRef.current,
+          },
         },
-        onError: (err) => {
-          // In production, replace with a toast notification
-          alert(err.message);
+      );
+
+      if (confirmError) {
+        alert(confirmError.message);
+        return;
+      }
+
+      if (!paymentIntent) {
+        alert(
+          'Payment confirmation succeeded but no PaymentIntent was returned. Please try again.',
+        );
+        return;
+      }
+
+      // ----------------------------------------------------------------
+      // STEP 3: The payment was confirmed.  Now tell our backend to
+      // complete the order.
+      // ----------------------------------------------------------------
+      completeCheckout.mutate(
+        { stripePaymentIntentId: paymentIntent.id },
+        {
+          // Explicit types prevent implicit 'any' errors
+          onSuccess: (data: CompleteCheckoutResponse) => {
+            navigate(`/orders/${data.data.order.id}`);
+          },
+          onError: (err: Error) => {
+            alert(`Payment succeeded but order failed: ${err.message}`);
+          },
         },
-      },
-    );
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      alert(message);
+    }
   };
 
   // ---- Loading state ----
@@ -208,7 +262,7 @@ function CheckoutForm(): React.JSX.Element {
                 ) : (
                   <Button
                     type="submit"
-                    loading={createOrder.isPending}
+                    loading={createOrder.isPending || completeCheckout.isPending}
                     disabled={!stripe || !elements}
                     data-testid="checkout-place-order-button"
                   >

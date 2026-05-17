@@ -1,303 +1,323 @@
 // frontend/src/pages/ProductDetailPage.tsx
-// Product detail page – displays image gallery, variations, price,
-// and an "Add to Cart" button.  Also includes a wishlist toggle.
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { isAxiosError } from 'axios';
-import { useProduct } from '../hooks/useProduct';
-import { useAddToCart } from '../hooks/useCartMutation';
+// Product detail page – displays a single product with image gallery,
+// description, price, and add-to-cart functionality.
+// Now shows feedback (alert for now) when adding to cart succeeds or fails.
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
+import { apiClient } from '../lib/api-client';
 import { useAuth } from '../hooks/useAuth';
-import { Button, Input, Spinner, Breadcrumbs } from '../components/ui';
-import WishlistButton from '../components/WishlistButton'; // <-- added
+import { useCartMutation } from '../hooks/useCartMutation';
+import { Button, Spinner } from '../components/ui';
 
-function ProductDetailPage(): React.JSX.Element {
-  // ---- All hooks are called unconditionally at the top ----
-  const { slug } = useParams<{ slug: string }>();
-  const { user } = useAuth();
-  const addToCart = useAddToCart();
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-  // Fetch the product – React Query will skip the API call when slug is undefined
-  const { data, isLoading, error } = useProduct(slug ?? '');
+interface Variation {
+  id: string;
+  size: string | null;
+  color: string | null;
+  stockQty: number;
+  priceModifier: string | number;
+}
 
-  // Local state
-  const [selectedVariationId, setSelectedVariationId] = useState<string | undefined>(undefined);
-  const [quantity, setQuantity] = useState(1);
-  const [addedToCart, setAddedToCart] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+interface ProductDetail {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  basePrice: string | number;
+  images: string[];
+  sellerId: string;
+  sellerName: string;
+  categoryName: string;
+  variations: Variation[];
+}
 
-  // ---- Handle missing slug ----
-  if (!slug) {
+interface ProductResponse {
+  status: string;
+  data: {
+    product: ProductDetail;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toNumber(value: string | number): number {
+  return typeof value === 'string' ? parseFloat(value) : value;
+}
+
+// ---------------------------------------------------------------------------
+// Image component with fallback
+// ---------------------------------------------------------------------------
+
+interface ProductImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+}
+
+function ProductImage({ src, alt, className }: ProductImageProps): React.JSX.Element {
+  const [failed, setFailed] = useState(false);
+  const handleError = useCallback(() => setFailed(true), []);
+
+  if (failed || !src) {
     return (
-      <div className="text-center py-12 text-error-500">
-        <p className="text-lg font-medium">Invalid product URL</p>
-        <Link to="/products" className="text-primary-600 underline mt-2 inline-block">
-          Back to products
-        </Link>
+      <div
+        className={`flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 text-neutral-400 ${className ?? ''}`}
+      >
+        <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
       </div>
     );
   }
+  return <img src={src} alt={alt} className={className} onError={handleError} />;
+}
 
-  // ---- Handle adding to cart ----
-  const handleAddToCart = async (): Promise<void> => {
-    if (!data) return;
-    try {
-      await addToCart.mutateAsync({
-        productId: data.data.product.id,
-        variationId: selectedVariationId,
-        quantity,
-      });
-      setAddedToCart(true);
-      setTimeout(() => setAddedToCart(false), 2000);
-    } catch {
-      // Error is handled by the mutation state
-    }
-  };
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+function ProductDetailPage(): React.JSX.Element {
+  const { productSlug } = useParams<{ productSlug: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const addToCart = useCartMutation();
+
+  // The user can manually select a variation; if none selected,
+  // we'll use the first in‑stock one automatically (derived below).
+  const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+
+  const { data, isLoading, error } = useQuery<ProductResponse, Error>({
+    queryKey: ['product', productSlug],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ProductResponse>(`/products/${productSlug}`);
+      return data;
+    },
+    enabled: !!productSlug,
+  });
+
+  // Extract product safely
+  const product: ProductDetail | undefined =
+    data?.data?.product ?? (data as { product?: ProductDetail })?.product;
+
+  // ---- Derived value: effective variation ID ----
+  // If the user hasn't picked one, fall back to the first in‑stock variation.
+  const effectiveVariationId =
+    selectedVariationId ?? product?.variations?.find((v) => v.stockQty > 0)?.id ?? null;
 
   // ---- Loading state ----
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Spinner size="h-8 w-8" />
+      <div className="flex justify-center py-16">
+        <Spinner size="h-12 w-12" />
       </div>
     );
   }
 
-  // ---- Error or missing data ----
-  if (error || !data) {
+  // ---- Error state ----
+  if (error) {
     return (
-      <div className="text-center py-12 text-error-500">
-        <p className="text-lg font-medium">Product not found</p>
-        <Link to="/products" className="text-primary-600 underline mt-2 inline-block">
-          Back to products
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+          Error loading product
+        </h1>
+        <p className="mt-2 text-neutral-600 dark:text-neutral-400">{error.message}</p>
+        <Link to="/products">
+          <Button className="mt-6">Back to products</Button>
         </Link>
       </div>
     );
   }
 
-  const product = data.data.product;
+  // ---- Not found ----
+  if (!product) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+          Product not found
+        </h1>
+        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+          The product &quot;{productSlug}&quot; could not be found.
+        </p>
+        <Link to="/products">
+          <Button className="mt-6">Browse products</Button>
+        </Link>
+      </div>
+    );
+  }
 
-  // Convert string prices to numbers (Prisma Decimal → string)
-  const basePrice = Number(product.basePrice);
-  const selectedVariation = product.variations.find((v) => v.id === selectedVariationId);
-  const priceModifier = selectedVariation ? Number(selectedVariation.priceModifier) : 0;
-  const currentPrice = basePrice + priceModifier;
+  const handleAddToCart = (): void => {
+    if (!user) {
+      // Not logged in – redirect to login page, then back here after login
+      navigate('/login', { state: { from: `/products/${product.slug}` } });
+      return;
+    }
 
-  // The currently displayed image (defaults to first image)
-  const mainImage = product.images[selectedImageIndex] ?? product.images[0];
+    addToCart.mutate(
+      {
+        productId: product.id,
+        variationId: effectiveVariationId,
+        quantity,
+      },
+      {
+        onSuccess: () => {
+          alert('Item added to cart!');
+        },
+        onError: (err) => {
+          alert(`Failed to add item: ${err.message}`);
+          console.error('Add to cart error:', err);
+        },
+      },
+    );
+  };
+
+  const basePriceNum = toNumber(product.basePrice);
+  const selectedVariation = product.variations.find(
+    (v: Variation) => v.id === effectiveVariationId,
+  );
+  const displayPrice = selectedVariation
+    ? basePriceNum + toNumber(selectedVariation.priceModifier)
+    : basePriceNum;
+
+  // Button disabled only if user is logged in and there are variations but none is
+  // available/selected (shouldn't happen thanks to the fallback, but keep defensive).
+  const isAddToCartDisabled = !!(
+    user &&
+    product.variations.length > 0 &&
+    (!effectiveVariationId || (selectedVariation?.stockQty ?? 0) === 0)
+  );
 
   return (
-    <div>
-      {/* ---- Breadcrumbs ---- */}
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Products', href: '/products' },
-          { label: product.name },
-        ]}
-      />
+    <div className="mx-auto max-w-7xl px-4 py-8" data-testid="product-detail-page">
+      {/* Breadcrumb */}
+      <nav className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
+        <Link to="/" className="hover:text-primary-600">
+          Home
+        </Link>
+        <span className="mx-2">/</span>
+        <Link to="/products" className="hover:text-primary-600">
+          Products
+        </Link>
+        <span className="mx-2">/</span>
+        <span className="text-neutral-900 dark:text-neutral-100">{product.name}</span>
+      </nav>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* ================================================================ */}
-        {/* Left: Image Gallery                                              */}
-        {/* ================================================================ */}
-        <div>
-          {/* Main image */}
-          <div
-            className="aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 mb-4"
-            data-testid="product-main-image"
-          >
-            <img
-              src={mainImage?.url ?? 'https://picsum.photos/seed/fallback/600'}
-              alt={mainImage?.altText ?? product.name}
+      <div className="grid gap-8 lg:grid-cols-2">
+        {/* ---- Image gallery ---- */}
+        <div className="space-y-4">
+          <div className="aspect-square rounded-xl overflow-hidden">
+            <ProductImage
+              src={product.images?.[0] ?? ''}
+              alt={product.name}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/fallback/600';
-              }}
             />
           </div>
-
-          {/* Thumbnails */}
           {product.images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto" data-testid="product-thumbnails">
-              {product.images.map((img, index) => (
-                <button
-                  key={img.id}
-                  onClick={() => setSelectedImageIndex(index)}
-                  data-testid={`product-thumbnail-${index}`}
-                  className={`w-20 h-20 rounded-lg border-2 overflow-hidden shrink-0 transition-colors ${
-                    index === selectedImageIndex
-                      ? 'border-primary-500'
-                      : 'border-transparent hover:border-primary-300'
-                  }`}
-                >
-                  <img src={img.url} alt={img.altText} className="w-full h-full object-cover" />
-                </button>
+            <div className="flex gap-2 overflow-x-auto">
+              {product.images.map((img: string, i: number) => (
+                <div key={i} className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
+                  <ProductImage
+                    src={img}
+                    alt={`${product.name} ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* ================================================================ */}
-        {/* Right: Product Info & Purchase                                   */}
-        {/* ================================================================ */}
+        {/* ---- Product info ---- */}
         <div>
-          {/* Product name & brand */}
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">{product.categoryName}</p>
+          <h1 className="mt-1 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
             {product.name}
           </h1>
-          {product.brand && (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-              Brand: {product.brand}
-            </p>
-          )}
-
-          {/* Seller info */}
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
             Sold by{' '}
-            <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              {product.seller.storeName}
+            <span className="font-medium text-neutral-900 dark:text-neutral-100">
+              {product.sellerName}
             </span>
           </p>
 
-          {/* Rating */}
-          {product.averageRating && (
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-yellow-500 text-lg">
-                {'★'.repeat(Math.round(product.averageRating))}
-                {'☆'.repeat(5 - Math.round(product.averageRating))}
-              </span>
-              <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                {product.averageRating.toFixed(1)} ({product.reviewCount} reviews)
-              </span>
-            </div>
-          )}
+          <p className="mt-4 text-3xl font-bold text-primary-600">${displayPrice.toFixed(2)}</p>
 
-          {/* Price */}
-          <p className="text-2xl font-bold text-primary-600 mt-4">${currentPrice.toFixed(2)}</p>
-
-          {/* Description */}
-          <p className="text-neutral-700 dark:text-neutral-300 mt-4 leading-relaxed">
-            {product.description}
-          </p>
-
-          {/* ---- Variation Selector ---- */}
+          {/* Variations */}
           {product.variations.length > 0 && (
-            <div className="mt-6 space-y-4">
-              {/* Size selector */}
-              {product.variations.some((v) => v.size) && (
-                <div data-testid="size-selector">
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Size
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {product.variations
-                      .filter((v) => v.size)
-                      .map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => setSelectedVariationId(v.id)}
-                          data-testid={`size-option-${v.size}`}
-                          className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                            selectedVariationId === v.id
-                              ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                              : 'border-neutral-300 dark:border-neutral-600 hover:border-primary-400'
-                          }`}
-                        >
-                          {v.size}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Color selector */}
-              {product.variations.some((v) => v.color) && (
-                <div data-testid="color-selector">
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Color
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {product.variations
-                      .filter((v) => v.color)
-                      .map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => setSelectedVariationId(v.id)}
-                          data-testid={`color-option-${v.color}`}
-                          className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                            selectedVariationId === v.id
-                              ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                              : 'border-neutral-300 dark:border-neutral-600 hover:border-primary-400'
-                          }`}
-                        >
-                          {v.color}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              )}
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+                Options
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {product.variations.map((v: Variation) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setSelectedVariationId(v.id)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                      effectiveVariationId === v.id
+                        ? 'border-primary-600 bg-primary-50 text-primary-600 dark:bg-primary-900 dark:text-primary-400'
+                        : 'border-neutral-300 text-neutral-700 hover:border-primary-400 dark:border-neutral-600 dark:text-neutral-300'
+                    } ${v.stockQty === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    disabled={v.stockQty === 0}
+                    data-testid={`variation-${v.id}`}
+                  >
+                    {[v.size, v.color].filter(Boolean).join(' / ') || 'Standard'}
+                    {v.stockQty === 0 && ' (out of stock)'}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* ---- Quantity, Wishlist, Add to Cart ---- */}
-          <div className="mt-6 flex items-center gap-4 flex-wrap">
-            {/* Wishlist button (full size) */}
-            <WishlistButton
-              compact={false}
-              product={{
-                id: product.id,
-                name: product.name,
-                slug: product.slug,
-                basePrice: currentPrice,
-                imageUrl: product.images[0]?.url ?? null,
-              }}
-            />
-
-            <div className="w-20">
-              <Input
-                type="number"
-                min={1}
-                max={99}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                // Use a small "Qty" icon prefix instead of a label – keeps alignment
-                icon={<span className="text-xs font-medium text-neutral-400">Qty</span>}
-                data-testid="product-quantity-input"
-              />
-            </div>
-
-            {user ? (
-              <Button
-                onClick={handleAddToCart}
-                loading={addToCart.isPending}
-                className="flex-1"
-                size="lg"
-                data-testid="add-to-cart-button"
+          {/* Quantity and Add to Cart */}
+          <div className="mt-6 flex items-center gap-4">
+            <div className="flex items-center border border-neutral-300 dark:border-neutral-600 rounded-lg">
+              <button
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                data-testid="quantity-decrease"
               >
-                {addedToCart ? '✓ Added!' : 'Add to Cart'}
-              </Button>
-            ) : (
-              <Link to="/login" className="flex-1" data-testid="login-to-add-to-cart-link">
-                <Button variant="outline" className="w-full" size="lg">
-                  Login to Add to Cart
-                </Button>
-              </Link>
-            )}
+                −
+              </button>
+              <span className="px-4 py-2 text-sm font-medium" data-testid="quantity-display">
+                {quantity}
+              </span>
+              <button
+                onClick={() => setQuantity((q) => q + 1)}
+                className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                data-testid="quantity-increase"
+              >
+                +
+              </button>
+            </div>
+            <Button
+              onClick={handleAddToCart}
+              loading={addToCart.isPending}
+              disabled={isAddToCartDisabled}
+              data-testid="add-to-cart-button"
+            >
+              {user ? 'Add to Cart' : 'Sign in to buy'}
+            </Button>
           </div>
 
-          {/* ---- Error from cart mutation ---- */}
-          {addToCart.isError && (
-            <p className="text-error-500 text-sm mt-2">
-              {isAxiosError(addToCart.error) && addToCart.error.response?.data?.message
-                ? addToCart.error.response.data.message
-                : 'Could not add to cart. Please try again.'}
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+              Description
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-line">
+              {product.description}
             </p>
-          )}
-
-          {/* ---- Success feedback ---- */}
-          {addedToCart && !addToCart.isError && (
-            <p className="text-success-600 text-sm mt-2">Item added to cart successfully!</p>
-          )}
+          </div>
         </div>
       </div>
     </div>
