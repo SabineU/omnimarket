@@ -22,18 +22,15 @@ export default defineConfig({
 
     // ------------------------------------------------------------------
     // Coverage configuration
-    //
-    // To keep the report honest, we only include files that currently
-    // have unit tests.  As we add tests for more files, we add their
-    // paths here.  This mirrors the approach used in the backend.
     // ------------------------------------------------------------------
     coverage: {
       // Use the v8 provider (fast, built into Node.js)
       provider: 'v8',
 
-      // Only measure files that have tests right now.
-      // TODO: add more files as tests are written for them.
+      // Only measure files that currently have unit tests.
+      // As we write new tests we add the corresponding source files here.
       include: [
+        // Existing (Phase 13 and earlier)
         'src/components/ProtectedRoute.tsx',
         'src/components/ui/Button.tsx',
         'src/components/ui/Input.tsx',
@@ -46,13 +43,31 @@ export default defineConfig({
         'src/contexts/wishlist-context.ts',
         'src/hooks/useWishlist.ts',
         'src/pages/WishlistPage.tsx',
-        // 'src/components/ui/PasswordInput.tsx',   // <-- removed until tests are written
-        // TODO:
-        // 'src/components/Layout.tsx',
-        // 'src/components/ui/Card.tsx',
-        // 'src/pages/LoginPage.tsx',
-        // 'src/hooks/useProducts.ts',
-        // …
+
+        // Phase 14 – Cart & Checkout hooks
+        'src/hooks/useCart.ts',
+        'src/hooks/useCartMutation.ts',
+        'src/hooks/useUpdateCartItem.ts',
+        'src/hooks/useRemoveCartItem.ts',
+        'src/hooks/useValidateCoupon.ts',
+        'src/hooks/useCreateOrder.ts',
+        'src/hooks/useCompleteCheckout.ts',
+        'src/hooks/useAddresses.ts',
+        'src/hooks/useAddAddress.ts',
+
+        // Phase 14 – Cart & Checkout components
+        'src/components/CartDrawer.tsx',
+        'src/components/checkout/AddressStep.tsx',
+        // TODO: add more component tests as they are written
+        // 'src/pages/CartPage.tsx',
+        // 'src/pages/CheckoutPage.tsx',
+        // 'src/components/CouponInput.tsx',
+        // 'src/components/checkout/ShippingStep.tsx',
+        // 'src/components/checkout/PaymentStep.tsx',
+        // 'src/pages/OrderDetailPage.tsx',
+        // 'src/pages/OrdersPage.tsx',
+        // 'src/pages/ProductDetailPage.tsx',
+        // 'src/pages/ProductListPage.tsx',
       ],
 
       // Exclude test files, setup, and type declarations
