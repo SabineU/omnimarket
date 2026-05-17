@@ -1,11 +1,13 @@
 // frontend/src/pages/OrderDetailPage.tsx
 // Displays the details of a single order after checkout (or from order history).
 // Now includes a visual status tracker, order items list, and a Cancel Order button
-// for orders that are still in PENDING or CONFIRMED status.
+// that opens a professional confirmation modal instead of a browser alert.
+import { useState } from 'react'; // <-- added
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
-import { useCancelOrder } from '../hooks/useCancelOrder'; // <-- added
+import { useCancelOrder } from '../hooks/useCancelOrder';
+import ConfirmModal from '../components/ConfirmModal'; // <-- added
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -130,6 +132,9 @@ function OrderDetailPage(): React.JSX.Element {
   // Cancel order mutation
   const cancelOrder = useCancelOrder();
 
+  // State for the confirmation modal
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
   // ---- Loading state ----
   if (isLoading) {
     return (
@@ -189,15 +194,26 @@ function OrderDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Cancel order handler ----
-  const handleCancelOrder = (): void => {
-    // Ask for confirmation before the destructive action
-    const confirmed = window.confirm(
-      'Are you sure you want to cancel this order? This action cannot be undone.',
-    );
-    if (confirmed && orderId) {
-      cancelOrder.mutate(orderId);
+  // ---- Cancel order handlers ----
+  const openCancelModal = (): void => {
+    setShowCancelModal(true);
+  };
+
+  const handleCancelConfirm = (): void => {
+    if (orderId) {
+      cancelOrder.mutate(orderId, {
+        onSuccess: () => {
+          // Close the modal after successful cancellation
+          setShowCancelModal(false);
+        },
+        // On error, keep the modal open so the user can try again.
+        // The error toast from the hook already informs the user.
+      });
     }
+  };
+
+  const handleCancelDismiss = (): void => {
+    setShowCancelModal(false);
   };
 
   const currentStepIndex = getCurrentStepIndex(order.status);
@@ -447,8 +463,7 @@ function OrderDetailPage(): React.JSX.Element {
             </div>
             <Button
               variant="outline"
-              onClick={handleCancelOrder}
-              loading={cancelOrder.isPending}
+              onClick={openCancelModal} // <-- opens the modal
               className="w-full sm:w-auto border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-950"
               data-testid="cancel-order-button"
             >
@@ -471,6 +486,18 @@ function OrderDetailPage(): React.JSX.Element {
           </Button>
         </Link>
       </div>
+
+      {/* ---- Confirmation Modal (rendered via portal, outside the page flow) ---- */}
+      <ConfirmModal
+        isOpen={showCancelModal}
+        onCancel={handleCancelDismiss}
+        onConfirm={handleCancelConfirm}
+        title="Cancel Order"
+        message="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmLabel="Yes, cancel order"
+        cancelLabel="Keep order"
+        isLoading={cancelOrder.isPending}
+      />
     </div>
   );
 }
