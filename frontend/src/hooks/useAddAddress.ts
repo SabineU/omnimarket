@@ -3,11 +3,11 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 
-/** Data required to create a new address */
+/** Data required to create a new address – state is optional */
 export interface NewAddressInput {
   street: string;
   city: string;
-  state: string;
+  state?: string; // <-- made optional to match the backend schema
   zipCode: string;
   country: string;
 }
@@ -17,7 +17,7 @@ export interface Address {
   id: string;
   street: string;
   city: string;
-  state: string;
+  state: string | null;
   zipCode: string;
   country: string;
   isDefault: boolean;
