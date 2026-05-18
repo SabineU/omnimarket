@@ -35,6 +35,7 @@ import checkoutRoutes from './routes/checkout.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import orderRoutes from './routes/order.routes.js';
+import returnRoutes from './routes/return.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
@@ -164,6 +165,9 @@ app.use('/api/checkout', paymentRoutes);
 
 // Customer order routes
 app.use('/api/orders', orderRoutes);
+
+// Customer return/refund request routes
+app.use('/api', returnRoutes);
 
 // Product review routes
 app.use('/api/products', reviewRoutes);

@@ -1,13 +1,16 @@
 // frontend/src/pages/OrderDetailPage.tsx
 // Displays the details of a single order after checkout (or from order history).
-// Now includes a visual status tracker, order items list, and a Cancel Order button
-// that opens a professional confirmation modal instead of a browser alert.
-import { useState } from 'react'; // <-- added
+// Now includes a visual status tracker, order items list, and:
+// - Cancel Order button with confirmation modal
+// - Return Request button with reason form modal
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useCancelOrder } from '../hooks/useCancelOrder';
-import ConfirmModal from '../components/ConfirmModal'; // <-- added
+import { useReturnOrder } from '../hooks/useReturnOrder'; // <-- added
+import ConfirmModal from '../components/ConfirmModal';
+import ReturnRequestModal from '../components/ReturnRequestModal'; // <-- added
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -132,8 +135,14 @@ function OrderDetailPage(): React.JSX.Element {
   // Cancel order mutation
   const cancelOrder = useCancelOrder();
 
+  // Return order mutation                                     // <-- added
+  const returnOrder = useReturnOrder();
+
   // State for the confirmation modal
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // State for the return request modal                        // <-- added
+  const [showReturnModal, setShowReturnModal] = useState(false);
 
   // ---- Loading state ----
   if (isLoading) {
@@ -203,7 +212,6 @@ function OrderDetailPage(): React.JSX.Element {
     if (orderId) {
       cancelOrder.mutate(orderId, {
         onSuccess: () => {
-          // Close the modal after successful cancellation
           setShowCancelModal(false);
         },
         // On error, keep the modal open so the user can try again.
@@ -214,6 +222,29 @@ function OrderDetailPage(): React.JSX.Element {
 
   const handleCancelDismiss = (): void => {
     setShowCancelModal(false);
+  };
+
+  // ---- Return order handlers ----                            // <-- added
+  const openReturnModal = (): void => {
+    setShowReturnModal(true);
+  };
+
+  const handleReturnSubmit = (data: { reason: string }): void => {
+    if (orderId) {
+      returnOrder.mutate(
+        { orderId, reason: data.reason },
+        {
+          onSuccess: () => {
+            // Close the modal after successful submission
+            setShowReturnModal(false);
+          },
+        },
+      );
+    }
+  };
+
+  const handleReturnDismiss = (): void => {
+    setShowReturnModal(false);
   };
 
   const currentStepIndex = getCurrentStepIndex(order.status);
@@ -250,20 +281,17 @@ function OrderDetailPage(): React.JSX.Element {
           </p>
         </div>
       )}
-
       {/* ---- Status tracker ---- */}
       {currentStepIndex >= 0 && (
         <div className="mb-8" data-testid="order-status-tracker">
           <nav aria-label="Order progress">
             <ol className="flex items-center">
               {STATUS_STEPS.map((step, index) => {
-                // A step is "complete" if its index is <= the current step
                 const isComplete = index <= currentStepIndex;
                 const isCurrent = index === currentStepIndex;
 
                 return (
                   <li key={step.status} className="flex-1 flex items-center">
-                    {/* Step circle */}
                     <div className="flex flex-col items-center">
                       <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
@@ -302,7 +330,6 @@ function OrderDetailPage(): React.JSX.Element {
                       </span>
                     </div>
 
-                    {/* Connector line between steps */}
                     {index < STATUS_STEPS.length - 1 && (
                       <div
                         className={`flex-1 h-0.5 mx-2 mt-[-1.25rem] ${
@@ -319,7 +346,6 @@ function OrderDetailPage(): React.JSX.Element {
           </nav>
         </div>
       )}
-
       {/* ---- Cancelled / Returned status notice ---- */}
       {!isPositiveStatus(order.status) && (
         <div className="mb-8 rounded-xl border border-error-200 bg-error-50 p-4 text-center dark:border-error-800 dark:bg-error-950">
@@ -333,7 +359,6 @@ function OrderDetailPage(): React.JSX.Element {
           </p>
         </div>
       )}
-
       {/* ---- Order details card ---- */}
       <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
@@ -372,7 +397,6 @@ function OrderDetailPage(): React.JSX.Element {
           </div>
         </dl>
       </div>
-
       {/* ---- Order items ---- */}
       {order.items && order.items.length > 0 && (
         <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
@@ -390,7 +414,6 @@ function OrderDetailPage(): React.JSX.Element {
                 className="flex gap-4 py-3 first:pt-0 last:pb-0"
                 data-testid={`order-item-${item.id}`}
               >
-                {/* Product image */}
                 <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-700">
                   {item.product.images.length > 0 ? (
                     <img
@@ -417,13 +440,11 @@ function OrderDetailPage(): React.JSX.Element {
                   )}
                 </div>
 
-                {/* Item info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                     {item.product.name}
                   </p>
 
-                  {/* Variation details */}
                   {item.variation && (
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                       {[item.variation.size, item.variation.color].filter(Boolean).join(' / ') ||
@@ -445,7 +466,6 @@ function OrderDetailPage(): React.JSX.Element {
           </ul>
         </div>
       )}
-
       {/* ---- Cancel Order button (only for cancellable orders) ---- */}
       {isCancellable(order.status) && (
         <div
@@ -463,7 +483,7 @@ function OrderDetailPage(): React.JSX.Element {
             </div>
             <Button
               variant="outline"
-              onClick={openCancelModal} // <-- opens the modal
+              onClick={openCancelModal}
               className="w-full sm:w-auto border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-950"
               data-testid="cancel-order-button"
             >
@@ -472,7 +492,32 @@ function OrderDetailPage(): React.JSX.Element {
           </div>
         </div>
       )}
-
+      {/* ---- Return Request button (only for delivered orders) ---- */} {/* <-- added */}
+      {order.status === 'DELIVERED' && (
+        <div
+          className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"
+          data-testid="return-order-section"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Not satisfied with your order?
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                You can request a return or refund within 30 days of delivery.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={openReturnModal}
+              className="w-full sm:w-auto border-blue-300 text-blue-600 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900"
+              data-testid="return-order-button"
+            >
+              Request Return
+            </Button>
+          </div>
+        </div>
+      )}
       {/* ---- Actions ---- */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <Link to="/orders" className="w-full sm:w-auto">
@@ -486,7 +531,6 @@ function OrderDetailPage(): React.JSX.Element {
           </Button>
         </Link>
       </div>
-
       {/* ---- Confirmation Modal (rendered via portal, outside the page flow) ---- */}
       <ConfirmModal
         isOpen={showCancelModal}
@@ -497,6 +541,13 @@ function OrderDetailPage(): React.JSX.Element {
         confirmLabel="Yes, cancel order"
         cancelLabel="Keep order"
         isLoading={cancelOrder.isPending}
+      />
+      {/* ---- Return Request Modal ---- */} {/* <-- added */}
+      <ReturnRequestModal
+        isOpen={showReturnModal}
+        onCancel={handleReturnDismiss}
+        onSubmit={handleReturnSubmit}
+        isLoading={returnOrder.isPending}
       />
     </div>
   );
