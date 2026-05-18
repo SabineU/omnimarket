@@ -3,14 +3,18 @@
 // Now includes a visual status tracker, order items list, and:
 // - Cancel Order button with confirmation modal
 // - Return Request button with reason form modal
-import { useState } from 'react';
+// - Review submission button for each product in delivered orders
+// - "Reviewed" badge + "Add more reviews" link for products already reviewed
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useCancelOrder } from '../hooks/useCancelOrder';
-import { useReturnOrder } from '../hooks/useReturnOrder'; // <-- added
+import { useReturnOrder } from '../hooks/useReturnOrder';
+import { useSubmitReview } from '../hooks/useSubmitReview';
 import ConfirmModal from '../components/ConfirmModal';
-import ReturnRequestModal from '../components/ReturnRequestModal'; // <-- added
+import ReturnRequestModal from '../components/ReturnRequestModal';
+import ReviewForm from '../components/ReviewForm';
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +27,7 @@ interface OrderItem {
   quantity: number;
   priceAtTime: string;
   product: {
+    id: string;
     name: string;
     images: { url: string }[];
   };
@@ -31,13 +36,14 @@ interface OrderItem {
     size: string | null;
     color: string | null;
   } | null;
+  hasReviewed?: boolean;
 }
 
 /** Full order object returned by GET /orders/:id */
 interface Order {
   id: string;
   customerId?: string;
-  status: string; // e.g. "CONFIRMED", "SHIPPED", "DELIVERED"
+  status: string;
   shippingAddressId?: string;
   totalAmount: string;
   createdAt: string;
@@ -56,23 +62,12 @@ interface OrderResponse {
 // Status tracker configuration
 // ---------------------------------------------------------------------------
 
-/**
- * Each step in the order lifecycle has a label and a corresponding
- * backend status value.  We define them in order so we can render
- * a timeline that highlights everything up to and including the
- * current status.
- */
 const STATUS_STEPS = [
   { label: 'Confirmed', status: 'CONFIRMED' },
   { label: 'Shipped', status: 'SHIPPED' },
   { label: 'Delivered', status: 'DELIVERED' },
 ] as const;
 
-/**
- * Return the index of the current status in the STATUS_STEPS array.
- * If the status is not found (e.g. CANCELLED, RETURNED), return -1
- * so that no steps are highlighted.
- */
 function getCurrentStepIndex(status: string): number {
   return STATUS_STEPS.findIndex((step) => step.status === status);
 }
@@ -99,18 +94,10 @@ function formatDate(isoString: string): string {
   });
 }
 
-/**
- * Determine if the order has a "positive" status (i.e. it's still
- * progressing normally, not cancelled or returned).
- */
 function isPositiveStatus(status: string): boolean {
   return !['CANCELLED', 'RETURNED', 'RETURN_REQUESTED'].includes(status);
 }
 
-/**
- * Determine if the order can be cancelled by the customer.
- * Only PENDING and CONFIRMED orders (before the seller ships) are cancellable.
- */
 function isCancellable(status: string): boolean {
   return ['PENDING', 'CONFIRMED'].includes(status);
 }
@@ -122,7 +109,6 @@ function isCancellable(status: string): boolean {
 function OrderDetailPage(): React.JSX.Element {
   const { orderId } = useParams<{ orderId: string }>();
 
-  // Fetch the order details
   const { data, isLoading, error } = useQuery<OrderResponse, Error>({
     queryKey: ['order', orderId],
     queryFn: async () => {
@@ -132,17 +118,40 @@ function OrderDetailPage(): React.JSX.Element {
     enabled: !!orderId,
   });
 
-  // Cancel order mutation
+  // Mutations
   const cancelOrder = useCancelOrder();
-
-  // Return order mutation                                     // <-- added
   const returnOrder = useReturnOrder();
+  const submitReview = useSubmitReview();
 
-  // State for the confirmation modal
+  // Modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
-
-  // State for the return request modal                        // <-- added
   const [showReturnModal, setShowReturnModal] = useState(false);
+
+  // Review modal target
+  const [reviewTarget, setReviewTarget] = useState<{
+    productId: string;
+    productName: string;
+    isAdditional?: boolean;
+  } | null>(null);
+
+  // Track which product IDs have been reviewed (persisted + local)
+  const [reviewedProductIds, setReviewedProductIds] = useState<Set<string>>(new Set());
+
+  // When the order data loads, initialise reviewedProductIds from persisted data.
+  useEffect(() => {
+    if (data?.data.order.items) {
+      const initialReviewed = new Set<string>();
+      for (const item of data.data.order.items) {
+        if (item.hasReviewed) {
+          initialReviewed.add(item.product.id);
+        }
+      }
+      // This is a legitimate use of setState inside an effect:
+      // we synchronise local state with the fetched server data.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setReviewedProductIds(initialReviewed);
+    }
+  }, [data]);
 
   // ---- Loading state ----
   if (isLoading) {
@@ -185,7 +194,6 @@ function OrderDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Not found state ----
   const order = data?.data?.order;
   if (!order) {
     return (
@@ -204,54 +212,54 @@ function OrderDetailPage(): React.JSX.Element {
   }
 
   // ---- Cancel order handlers ----
-  const openCancelModal = (): void => {
-    setShowCancelModal(true);
-  };
-
+  const openCancelModal = (): void => setShowCancelModal(true);
   const handleCancelConfirm = (): void => {
-    if (orderId) {
-      cancelOrder.mutate(orderId, {
-        onSuccess: () => {
-          setShowCancelModal(false);
-        },
-        // On error, keep the modal open so the user can try again.
-        // The error toast from the hook already informs the user.
-      });
-    }
+    if (orderId) cancelOrder.mutate(orderId, { onSuccess: () => setShowCancelModal(false) });
   };
+  const handleCancelDismiss = (): void => setShowCancelModal(false);
 
-  const handleCancelDismiss = (): void => {
-    setShowCancelModal(false);
-  };
-
-  // ---- Return order handlers ----                            // <-- added
-  const openReturnModal = (): void => {
-    setShowReturnModal(true);
-  };
-
+  // ---- Return order handlers ----
+  const openReturnModal = (): void => setShowReturnModal(true);
   const handleReturnSubmit = (data: { reason: string }): void => {
-    if (orderId) {
+    if (orderId)
       returnOrder.mutate(
         { orderId, reason: data.reason },
-        {
-          onSuccess: () => {
-            // Close the modal after successful submission
-            setShowReturnModal(false);
-          },
-        },
+        { onSuccess: () => setShowReturnModal(false) },
       );
-    }
+  };
+  const handleReturnDismiss = (): void => setShowReturnModal(false);
+
+  // ---- Review handlers ----
+  const openReviewModal = (productId: string, productName: string, isAdditional = false): void => {
+    setReviewTarget({ productId, productName, isAdditional });
   };
 
-  const handleReturnDismiss = (): void => {
-    setShowReturnModal(false);
+  const handleReviewSubmit = (rating: number, comment: string): void => {
+    if (!reviewTarget) return;
+    submitReview.mutate(
+      {
+        productId: reviewTarget.productId,
+        rating,
+        comment,
+        isAdditional: reviewTarget.isAdditional ?? false,
+      },
+      {
+        onSuccess: () => {
+          // Mark this product as reviewed in local state
+          setReviewedProductIds((prev) => new Set(prev).add(reviewTarget.productId));
+          setReviewTarget(null);
+        },
+      },
+    );
   };
+
+  const handleReviewDismiss = (): void => setReviewTarget(null);
 
   const currentStepIndex = getCurrentStepIndex(order.status);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8" data-testid="order-detail-page">
-      {/* ---- Confirmation header (only for positive statuses) ---- */}
+      {/* ---- Confirmation header ---- */}
       {isPositiveStatus(order.status) && (
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
@@ -281,6 +289,7 @@ function OrderDetailPage(): React.JSX.Element {
           </p>
         </div>
       )}
+
       {/* ---- Status tracker ---- */}
       {currentStepIndex >= 0 && (
         <div className="mb-8" data-testid="order-status-tracker">
@@ -289,16 +298,11 @@ function OrderDetailPage(): React.JSX.Element {
               {STATUS_STEPS.map((step, index) => {
                 const isComplete = index <= currentStepIndex;
                 const isCurrent = index === currentStepIndex;
-
                 return (
                   <li key={step.status} className="flex-1 flex items-center">
                     <div className="flex flex-col items-center">
                       <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                          isComplete
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-neutral-200 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400'
-                        } ${isCurrent ? 'ring-4 ring-primary-200 dark:ring-primary-800' : ''}`}
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isComplete ? 'bg-primary-600 text-white' : 'bg-neutral-200 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400'} ${isCurrent ? 'ring-4 ring-primary-200 dark:ring-primary-800' : ''}`}
                         data-testid={`tracker-step-${step.status}`}
                       >
                         {isComplete ? (
@@ -320,23 +324,14 @@ function OrderDetailPage(): React.JSX.Element {
                         )}
                       </span>
                       <span
-                        className={`mt-2 text-xs font-medium ${
-                          isComplete
-                            ? 'text-primary-600 dark:text-primary-400'
-                            : 'text-neutral-500 dark:text-neutral-400'
-                        }`}
+                        className={`mt-2 text-xs font-medium ${isComplete ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-500 dark:text-neutral-400'}`}
                       >
                         {step.label}
                       </span>
                     </div>
-
                     {index < STATUS_STEPS.length - 1 && (
                       <div
-                        className={`flex-1 h-0.5 mx-2 mt-[-1.25rem] ${
-                          index < currentStepIndex
-                            ? 'bg-primary-600'
-                            : 'bg-neutral-200 dark:bg-neutral-700'
-                        }`}
+                        className={`flex-1 h-0.5 mx-2 mt-[-1.25rem] ${index < currentStepIndex ? 'bg-primary-600' : 'bg-neutral-200 dark:bg-neutral-700'}`}
                       />
                     )}
                   </li>
@@ -346,6 +341,7 @@ function OrderDetailPage(): React.JSX.Element {
           </nav>
         </div>
       )}
+
       {/* ---- Cancelled / Returned status notice ---- */}
       {!isPositiveStatus(order.status) && (
         <div className="mb-8 rounded-xl border border-error-200 bg-error-50 p-4 text-center dark:border-error-800 dark:bg-error-950">
@@ -359,12 +355,12 @@ function OrderDetailPage(): React.JSX.Element {
           </p>
         </div>
       )}
+
       {/* ---- Order details card ---- */}
       <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
           Order Details
         </h2>
-
         <dl className="space-y-3">
           <div className="flex justify-between text-sm">
             <dt className="text-neutral-500 dark:text-neutral-400">Order Number</dt>
@@ -372,7 +368,6 @@ function OrderDetailPage(): React.JSX.Element {
               #{order.id.slice(0, 8).toUpperCase()}
             </dd>
           </div>
-
           <div className="flex justify-between text-sm">
             <dt className="text-neutral-500 dark:text-neutral-400">Status</dt>
             <dd>
@@ -381,14 +376,12 @@ function OrderDetailPage(): React.JSX.Element {
               </span>
             </dd>
           </div>
-
           <div className="flex justify-between text-sm">
             <dt className="text-neutral-500 dark:text-neutral-400">Total</dt>
             <dd className="font-semibold text-neutral-900 dark:text-neutral-100">
               ${parseFloat(order.totalAmount).toFixed(2)}
             </dd>
           </div>
-
           <div className="flex justify-between text-sm">
             <dt className="text-neutral-500 dark:text-neutral-400">Placed on</dt>
             <dd className="text-neutral-900 dark:text-neutral-100">
@@ -397,13 +390,13 @@ function OrderDetailPage(): React.JSX.Element {
           </div>
         </dl>
       </div>
+
       {/* ---- Order items ---- */}
       {order.items && order.items.length > 0 && (
         <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
             Items ({order.items.length})
           </h2>
-
           <ul
             className="divide-y divide-neutral-100 dark:divide-neutral-700"
             data-testid="order-items-list"
@@ -439,19 +432,16 @@ function OrderDetailPage(): React.JSX.Element {
                     </div>
                   )}
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                     {item.product.name}
                   </p>
-
                   {item.variation && (
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                       {[item.variation.size, item.variation.color].filter(Boolean).join(' / ') ||
                         item.variation.sku}
                     </p>
                   )}
-
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">
                       Qty: {item.quantity}
@@ -460,13 +450,61 @@ function OrderDetailPage(): React.JSX.Element {
                       ${parseFloat(item.priceAtTime).toFixed(2)}
                     </span>
                   </div>
+
+                  {/* ---- Review section (only for delivered orders) ---- */}
+                  {order.status === 'DELIVERED' && (
+                    <div className="mt-2 flex items-center gap-3">
+                      {reviewedProductIds.has(item.product.id) ? (
+                        <>
+                          {/* Reviewed badge */}
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            Reviewed
+                          </span>
+                          {/* Add more reviews link */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openReviewModal(item.product.id, item.product.name, true)
+                            }
+                            className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                            data-testid={`additional-review-button-${item.id}`}
+                          >
+                            Add more reviews
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openReviewModal(item.product.id, item.product.name)}
+                          className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                          data-testid={`review-button-${item.id}`}
+                        >
+                          Write a Review
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         </div>
       )}
-      {/* ---- Cancel Order button (only for cancellable orders) ---- */}
+
+      {/* ---- Cancel Order button ---- */}
       {isCancellable(order.status) && (
         <div
           className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950"
@@ -492,7 +530,8 @@ function OrderDetailPage(): React.JSX.Element {
           </div>
         </div>
       )}
-      {/* ---- Return Request button (only for delivered orders) ---- */} {/* <-- added */}
+
+      {/* ---- Return Request button ---- */}
       {order.status === 'DELIVERED' && (
         <div
           className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"
@@ -518,6 +557,7 @@ function OrderDetailPage(): React.JSX.Element {
           </div>
         </div>
       )}
+
       {/* ---- Actions ---- */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <Link to="/orders" className="w-full sm:w-auto">
@@ -531,7 +571,8 @@ function OrderDetailPage(): React.JSX.Element {
           </Button>
         </Link>
       </div>
-      {/* ---- Confirmation Modal (rendered via portal, outside the page flow) ---- */}
+
+      {/* ---- Cancel Confirmation Modal ---- */}
       <ConfirmModal
         isOpen={showCancelModal}
         onCancel={handleCancelDismiss}
@@ -542,13 +583,30 @@ function OrderDetailPage(): React.JSX.Element {
         cancelLabel="Keep order"
         isLoading={cancelOrder.isPending}
       />
-      {/* ---- Return Request Modal ---- */} {/* <-- added */}
+
+      {/* ---- Return Request Modal ---- */}
       <ReturnRequestModal
         isOpen={showReturnModal}
         onCancel={handleReturnDismiss}
         onSubmit={handleReturnSubmit}
         isLoading={returnOrder.isPending}
       />
+
+      {/* ---- Review Form Modal ---- */}
+      {reviewTarget && (
+        <ReviewForm
+          isOpen={reviewTarget !== null}
+          onCancel={handleReviewDismiss}
+          onSubmit={handleReviewSubmit}
+          isLoading={submitReview.isPending}
+          productName={reviewTarget.productName}
+          title={
+            reviewTarget.isAdditional
+              ? `Add more reviews for ${reviewTarget.productName}`
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

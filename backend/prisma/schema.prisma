@@ -197,7 +197,12 @@ model ProductVariation {
   @@map("product_variations")
 }
 
-/// Review – customer rating and comment on a purchased product.
+// ---------------------------------------------------------------------------
+// Review – customer rating and comment on a purchased product.
+// The unique constraint on (productId, customerId) has been REMOVED.
+// This allows customers to add multiple reviews for the same product
+// (e.g., a follow‑up review after using the product longer).
+// ---------------------------------------------------------------------------
 model Review {
   id         String   @id @default(uuid())
   productId  String
@@ -208,7 +213,7 @@ model Review {
   comment    String?                                // optional text
   createdAt  DateTime @default(now())
 
-  @@unique([productId, customerId])                // one review per product per customer
+  // @@unique([productId, customerId]) has been intentionally dropped.
   @@map("reviews")
 }
 

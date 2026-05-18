@@ -1,6 +1,6 @@
 // backend/src/services/review.service.ts
 // Business logic for product reviews.
-import { prisma } from '../db.js';
+import prisma from '../lib/prisma.js'; // <-- switched to shared instance
 import type { Review } from '@prisma/client';
 
 /** Custom error thrown when a user cannot review a product */
@@ -37,9 +37,12 @@ export async function createReview(
   }
 
   // 2. Check that the user hasn't already reviewed this product.
-  const existingReview = await prisma.review.findUnique({
+  //    Because the @@unique on (productId, customerId) was dropped,
+  //    we must use findFirst instead of findUnique.
+  const existingReview = await prisma.review.findFirst({
     where: {
-      productId_customerId: { productId, customerId: userId },
+      productId,
+      customerId: userId,
     },
   });
 

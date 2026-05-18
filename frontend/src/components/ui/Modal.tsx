@@ -3,7 +3,9 @@
 // Renders an overlay + centred panel via a React Portal to document.body.
 // Pressing Escape closes the modal. Clicking the backdrop closes the modal
 // only if closeOnBackdrop is true.
-import { useEffect, useRef, type ReactNode } from 'react'; // <-- removed KeyboardEvent
+//
+// FIXED: uses a ref for onClose, synced after render to avoid lint errors.
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -26,40 +28,43 @@ function Modal({
   closeOnBackdrop = true,
   ariaLabel,
 }: ModalProps): React.JSX.Element | null {
-  // Keep a ref to the first focusable element so we can focus it when the modal opens
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape key press
+  // Store the latest onClose in a ref so the effect doesn't depend on it.
+  // We update the ref in a useEffect to avoid mutating a ref during render.
+  const onCloseRef = useRef(onClose);
+
+  // Sync the ref after every render (this does not trigger a re‑render itself)
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // Close on Escape key press and focus the panel (only when isOpen changes)
   useEffect(() => {
     if (!isOpen) return;
 
-    // Listener uses the global KeyboardEvent type, so no import is needed.
     const handleKeyDown = (e: globalThis.KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    // Prevent scrolling of the body while the modal is open
     document.body.style.overflow = 'hidden';
 
     // Focus the panel so keyboard events are received
     panelRef.current?.focus();
 
-    // Cleanup function – must have an explicit return type per project lint rules.
     return (): void => {
-      // <-- added :void
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose]);
+    // onClose is stable via onCloseRef, so this effect only needs to re‑run
+    // when isOpen changes.
+  }, [isOpen]);
 
-  // Don't render anything if the modal is closed
   if (!isOpen) return null;
 
-  // Render the modal into a portal attached to document.body.
-  // This guarantees it sits above all other page content regardless of z‑index.
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -67,18 +72,21 @@ function Modal({
       role="alertdialog"
       aria-label={ariaLabel}
     >
-      {/* Semi‑transparent backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={closeOnBackdrop ? onClose : undefined}
+        // Wrap in an arrow function so we only read the ref when clicked,
+        // not during render.
+        onClick={() => {
+          if (closeOnBackdrop) {
+            onCloseRef.current();
+          }
+        }}
         aria-hidden="true"
         data-testid="modal-backdrop"
       />
 
-      {/* Panel */}
       <div
         ref={panelRef}
-        // tabIndex makes the div focusable so we can focus it on open
         tabIndex={-1}
         className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl focus:outline-none dark:bg-neutral-800"
         data-testid="modal-panel"
