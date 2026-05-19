@@ -37,6 +37,7 @@ import webhookRoutes from './routes/webhook.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import returnRoutes from './routes/return.routes.js';
 import reviewRoutes from './routes/review.routes.js';
+import invoiceRoutes from './routes/invoice.routes.js'; // <-- ADDED
 import { errorHandler } from './middlewares/error-handler.js';
 import { authenticate } from './middlewares/auth.js';
 import { authorize } from './middlewares/rbac.js';
@@ -171,6 +172,9 @@ app.use('/api', returnRoutes);
 
 // Product review routes
 app.use('/api/products', reviewRoutes);
+
+// Invoice download routes                                   // <-- ADDED
+app.use('/api', invoiceRoutes);
 
 // ---------- Protected route examples ----------
 

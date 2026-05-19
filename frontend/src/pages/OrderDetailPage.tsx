@@ -5,8 +5,10 @@
 // - Return Request button with reason form modal
 // - Review submission button for each product in delivered orders
 // - "Reviewed" badge + "Add more reviews" link for products already reviewed
+// - Download Invoice button that generates a PDF invoice
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import toast from 'react-hot-toast'; // <-- added
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useCancelOrder } from '../hooks/useCancelOrder';
@@ -254,6 +256,33 @@ function OrderDetailPage(): React.JSX.Element {
   };
 
   const handleReviewDismiss = (): void => setReviewTarget(null);
+
+  // ---- Invoice download handler ----                              // <-- added
+  const handleDownloadInvoice = async (): Promise<void> => {
+    if (!orderId) return;
+    try {
+      // Make a GET request with responseType 'blob' to receive the PDF bytes
+      const response = await apiClient.get(`/orders/${orderId}/invoice`, {
+        responseType: 'blob',
+      });
+      // Create a temporary URL pointing to the blob
+      const url = window.URL.createObjectURL(
+        new Blob([response.data as Blob], { type: 'application/pdf' }),
+      );
+      // Programmatically click a hidden download link
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice-${orderId.slice(0, 8)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      // Clean up the temporary element and URL
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download invoice error:', err);
+      toast.error('Failed to download invoice');
+    }
+  };
 
   const currentStepIndex = getCurrentStepIndex(order.status);
 
@@ -560,6 +589,15 @@ function OrderDetailPage(): React.JSX.Element {
 
       {/* ---- Actions ---- */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        {/* Download Invoice button */} {/* <-- added */}
+        <Button
+          variant="outline"
+          onClick={handleDownloadInvoice}
+          className="w-full sm:w-auto"
+          data-testid="download-invoice-button"
+        >
+          Download Invoice
+        </Button>
         <Link to="/orders" className="w-full sm:w-auto">
           <Button variant="outline" className="w-full" data-testid="view-all-orders-button">
             View All Orders
