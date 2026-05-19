@@ -30,7 +30,7 @@ export default defineConfig({
       // Only measure files that currently have unit tests.
       // As we write new tests we add the corresponding source files here.
       include: [
-        // Existing (Phase 13 and earlier)
+        // Phase 13 and earlier
         'src/components/ProtectedRoute.tsx',
         'src/components/ui/Button.tsx',
         'src/components/ui/Input.tsx',
@@ -58,16 +58,21 @@ export default defineConfig({
         // Phase 14 – Cart & Checkout components
         'src/components/CartDrawer.tsx',
         'src/components/checkout/AddressStep.tsx',
-        // TODO: add more component tests as they are written
-        // 'src/pages/CartPage.tsx',
-        // 'src/pages/CheckoutPage.tsx',
-        // 'src/components/CouponInput.tsx',
-        // 'src/components/checkout/ShippingStep.tsx',
-        // 'src/components/checkout/PaymentStep.tsx',
-        // 'src/pages/OrderDetailPage.tsx',
-        // 'src/pages/OrdersPage.tsx',
-        // 'src/pages/ProductDetailPage.tsx',
-        // 'src/pages/ProductListPage.tsx',
+
+        // Phase 15 – Orders & Profile hooks
+        'src/hooks/useCancelOrder.ts',
+        'src/hooks/useReturnOrder.ts',
+        'src/hooks/useSubmitReview.ts',
+        'src/hooks/useProfile.ts',
+        'src/hooks/useUpdateProfile.ts',
+        'src/hooks/useUpdateAddress.ts',
+        'src/hooks/useDeleteAddress.ts',
+
+        // Phase 15 – Orders & Profile components
+        'src/pages/OrdersPage.tsx',
+        'src/pages/ProfilePage.tsx',
+        'src/components/ReturnRequestModal.tsx',
+        'src/components/ReviewForm.tsx',
       ],
 
       // Exclude test files, setup, and type declarations
