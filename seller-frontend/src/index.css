@@ -1,0 +1,17 @@
+/* seller-frontend/src/index.css
+   Tailwind CSS v4 – uses @import instead of @tailwind directives. */
+@import 'tailwindcss';
+
+/* Slide-in animation for drawers */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
