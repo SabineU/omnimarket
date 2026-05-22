@@ -1,5 +1,6 @@
 // seller-frontend/src/pages/ProductsPage.tsx
 // Seller product management page – list, create, edit, delete, and CSV import.
+// FIXED: dark‑mode hover colour uses an existing Tailwind token.
 import { useState } from 'react';
 import { useSellerProducts, type SellerProduct } from '../hooks/useSellerProducts';
 import { useDeleteProduct, useCreateProduct } from '../hooks/useProductMutations';
@@ -86,7 +87,6 @@ function ProductsPage(): React.JSX.Element {
         return;
       }
 
-      // First line is the header
       const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
       const nameIdx = header.indexOf('name');
       const descIdx = header.indexOf('description');
@@ -98,7 +98,6 @@ function ProductsPage(): React.JSX.Element {
         return;
       }
 
-      // Process each data row
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map((c) => c.trim());
         try {
@@ -119,7 +118,6 @@ function ProductsPage(): React.JSX.Element {
     };
 
     reader.readAsText(file);
-    // Reset the file input so the same file can be re‑imported
     e.target.value = '';
   };
 
@@ -151,7 +149,7 @@ function ProductsPage(): React.JSX.Element {
           Products ({products.length})
         </h1>
         <div className="flex gap-3">
-          {/* CSV Import – styled label that wraps a hidden file input */}
+          {/* CSV Import */}
           <label
             className={`inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm border border-primary-600 text-primary-600 hover:bg-primary-50 focus:ring-primary-500 px-3 py-1.5 text-sm cursor-pointer ${
               csvLoading ? 'opacity-50 cursor-not-allowed' : ''
@@ -209,7 +207,7 @@ function ProductsPage(): React.JSX.Element {
               {products.map((product) => (
                 <tr
                   key={product.id}
-                  className="hover:bg-neutral-50 dark:hover:bg-neutral-750"
+                  className="hover:bg-neutral-50 dark:hover:bg-neutral-700"
                   data-testid={`product-row-${product.id}`}
                 >
                   {/* Name + image count */}

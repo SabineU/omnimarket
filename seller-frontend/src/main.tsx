@@ -3,13 +3,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from './contexts/ThemeProvider';
 import App from './App';
 import './index.css';
 
-// Grab the root element from the HTML file.  If it doesn't exist
-// (which should never happen in normal operation), throw a helpful
-// error instead of using a non‑null assertion, to satisfy the
-// @typescript-eslint/no-non-null-assertion rule.
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error(
@@ -19,7 +16,9 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
-    <Toaster position="top-right" />
+    <ThemeProvider>
+      <App />
+      <Toaster position="top-right" />
+    </ThemeProvider>
   </StrictMode>,
 );
