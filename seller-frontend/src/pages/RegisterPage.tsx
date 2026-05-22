@@ -1,15 +1,14 @@
-// seller-frontend/src/pages/LoginPage.tsx
-// Seller login page – only allows SELLER or ADMIN accounts.
-// Now includes a show/hide password toggle, improved dark‑mode error contrast,
-// and a link to the registration page.
+// seller-frontend/src/pages/RegisterPage.tsx
+// Seller registration page – creates a new account with role SELLER.
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui';
 
-function LoginPage(): React.JSX.Element {
-  const { login } = useAuth();
+function RegisterPage(): React.JSX.Element {
+  const { register } = useAuth();
   const navigate = useNavigate();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,10 +20,10 @@ function LoginPage(): React.JSX.Element {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/');
+      await register(email, password, name);
+      navigate('/'); // redirect to dashboard after registration
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -35,14 +34,30 @@ function LoginPage(): React.JSX.Element {
       <form
         onSubmit={handleSubmit}
         className="bg-white dark:bg-neutral-800 p-8 rounded-xl shadow-md w-full max-w-sm space-y-4"
-        data-testid="seller-login-form"
+        data-testid="seller-register-form"
       >
         <h1 className="text-2xl font-bold text-center text-neutral-900 dark:text-neutral-100">
-          Seller Login
+          Create Seller Account
         </h1>
+
+        <p className="text-sm text-center text-neutral-500 dark:text-neutral-400">
+          Register as a seller to start listing your products on OmniMarket.
+        </p>
 
         {error && <p className="text-error-500 dark:text-error-400 text-sm text-center">{error}</p>}
 
+        {/* Name */}
+        <input
+          type="text"
+          placeholder="Full Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
+          required
+          data-testid="seller-register-name"
+        />
+
+        {/* Email */}
         <input
           type="email"
           placeholder="Email"
@@ -50,25 +65,26 @@ function LoginPage(): React.JSX.Element {
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
           required
-          data-testid="seller-email-input"
+          data-testid="seller-register-email"
         />
 
+        {/* Password with toggle */}
         <div className="relative">
           <input
             type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
+            placeholder="Password (min 6 characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 pr-10 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
             required
-            data-testid="seller-password-input"
+            minLength={6}
+            data-testid="seller-register-password"
           />
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
             className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            data-testid="seller-password-toggle"
           >
             {showPassword ? (
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,16 +118,15 @@ function LoginPage(): React.JSX.Element {
           type="submit"
           className="w-full"
           loading={loading}
-          data-testid="seller-login-button"
+          data-testid="seller-register-button"
         >
-          Sign In
+          Create Account
         </Button>
 
-        {/* Link to registration */}
         <p className="text-sm text-center text-neutral-500 dark:text-neutral-400">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-primary-600 hover:underline">
-            Create one
+          Already have an account?{' '}
+          <Link to="/login" className="text-primary-600 hover:underline">
+            Sign in
           </Link>
         </p>
       </form>
@@ -119,4 +134,4 @@ function LoginPage(): React.JSX.Element {
   );
 }
 
-export default LoginPage;
+export default RegisterPage;

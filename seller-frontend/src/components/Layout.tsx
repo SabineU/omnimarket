@@ -1,6 +1,5 @@
 // seller-frontend/src/components/Layout.tsx
 // Shared layout for the seller portal – sidebar navigation + top bar.
-// Now includes the logo image and high‑contrast dark‑mode text.
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -21,7 +20,6 @@ function Layout(): React.JSX.Element {
         data-testid="seller-header"
       >
         <Link to="/" className="flex items-center gap-3 text-xl font-bold">
-          {/* Logo image */}
           <img src="/logo.png" alt="OmniMarket" className="h-8 w-auto" />
           <span>OmniMarket Seller</span>
         </Link>
@@ -38,7 +36,7 @@ function Layout(): React.JSX.Element {
       </header>
 
       <div className="flex flex-1">
-        {/* Sidebar – high‑contrast text in dark mode */}
+        {/* Sidebar */}
         <aside
           className="w-64 bg-white dark:bg-neutral-800 border-r border-neutral-200 dark:border-neutral-700 p-4 space-y-2"
           data-testid="seller-sidebar"
@@ -63,6 +61,14 @@ function Layout(): React.JSX.Element {
             data-testid="nav-orders"
           >
             Orders
+          </Link>
+          {/* NEW: Profile link */}
+          <Link
+            to="/profile"
+            className="block px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+            data-testid="nav-profile"
+          >
+            Profile
           </Link>
         </aside>
 
