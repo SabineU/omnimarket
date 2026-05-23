@@ -1,6 +1,7 @@
 // seller-frontend/src/components/ProductFormModal.tsx
 // A modal form for creating or editing a product.
 // Handles name, description, category, price, brand, variations, and images.
+// Now uses ImageUploadRow for file upload + paste URL support.
 import { useState, useEffect, type FormEvent } from 'react';
 import { useCategories } from '../hooks/useCategories';
 import {
@@ -8,7 +9,8 @@ import {
   useUpdateProduct,
   type CreateProductPayload,
 } from '../hooks/useProductMutations';
-import { type SellerProduct } from '../hooks/useSellerProducts'; // <-- corrected import
+import { type SellerProduct } from '../hooks/useSellerProducts';
+import ImageUploadRow from './ImageUploadRow'; // <-- added
 import { Button, Spinner } from './ui';
 
 // ---------------------------------------------------------------------------
@@ -139,8 +141,14 @@ function ProductFormModal({
     setImages((prev) => [...prev, { key: genKey(), url: '', altText: '' }]);
   };
 
-  const updateImage = (key: string, field: keyof ImageInput, value: string): void => {
-    setImages((prev) => prev.map((img) => (img.key === key ? { ...img, [field]: value } : img)));
+  /** Called by ImageUploadRow when a URL is set (upload or manual) */
+  const handleImageUrlChange = (key: string, url: string): void => {
+    setImages((prev) => prev.map((img) => (img.key === key ? { ...img, url } : img)));
+  };
+
+  /** Called by ImageUploadRow when the alt text changes */
+  const handleImageAltChange = (key: string, altText: string): void => {
+    setImages((prev) => prev.map((img) => (img.key === key ? { ...img, altText } : img)));
   };
 
   const removeImage = (key: string): void => {
@@ -166,10 +174,12 @@ function ProductFormModal({
         priceModifier: Number(v.priceModifier),
         stockQty: Number(v.stockQty),
       })),
-      images: images.map((img) => ({
-        url: img.url.trim(),
-        altText: img.altText.trim(),
-      })),
+      images: images
+        .filter((img) => img.url.trim()) // only send rows that have a URL
+        .map((img) => ({
+          url: img.url.trim(),
+          altText: img.altText.trim() || img.url, // fallback alt text
+        })),
     };
 
     if (isEdit && existingProduct) {
@@ -398,41 +408,22 @@ function ProductFormModal({
 
               {images.length === 0 && (
                 <p className="text-xs text-neutral-400 dark:text-neutral-500">
-                  No images yet. Paste image URLs.
+                  No images yet. Upload or paste URLs.
                 </p>
               )}
 
               <div className="space-y-2">
                 {images.map((img) => (
-                  <div
+                  <ImageUploadRow
                     key={img.key}
-                    className="flex items-center gap-2 rounded-lg border border-neutral-200 p-2 dark:border-neutral-700"
-                    data-testid={`image-row-${img.key}`}
-                  >
-                    <input
-                      type="url"
-                      placeholder="Image URL"
-                      value={img.url}
-                      onChange={(e) => updateImage(img.key, 'url', e.target.value)}
-                      className="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
-                      data-testid={`image-url-${img.key}`}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Alt text"
-                      value={img.altText}
-                      onChange={(e) => updateImage(img.key, 'altText', e.target.value)}
-                      className="w-32 rounded border border-neutral-300 px-2 py-1 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(img.key)}
-                      className="text-error-500 hover:text-error-600 text-sm"
-                      data-testid={`image-remove-${img.key}`}
-                    >
-                      ✕
-                    </button>
-                  </div>
+                    rowKey={img.key}
+                    url={img.url}
+                    altText={img.altText}
+                    onUrlChange={handleImageUrlChange}
+                    onAltTextChange={handleImageAltChange}
+                    onRemove={removeImage}
+                    disabled={isLoading}
+                  />
                 ))}
               </div>
             </div>
