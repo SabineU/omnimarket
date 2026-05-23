@@ -1,28 +1,28 @@
 // backend/src/services/seller-order.service.ts
 // Business logic for seller order management.
 // All functions require the authenticated seller's ID.
+// FIXED: now includes customer name/email so the seller portal can display them.
 
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
-import type { OrderStatus as PrismaOrderStatus } from '@prisma/client'; // type import only
+import type { OrderStatus as PrismaOrderStatus } from '@prisma/client';
 import type { OrderStatus } from '@omnimarket/shared';
 
-/** Order enriched with items (seller‑filtered) */
+/** Order enriched with items (seller‑filtered) and customer info */
 export interface SellerEnrichedOrder extends Order {
+  customer?: { name: string; email: string }; // <-- added
   items: (OrderItem & {
     product: { name: string; images: { url: string }[] };
     variation: { sku: string; size: string | null; color: string | null } | null;
   })[];
 }
 
-/** Options for listing orders */
 export interface SellerOrderListOptions {
   status?: string;
   page?: number;
   limit?: number;
 }
 
-/** Paginated result shape */
 export interface PaginatedSellerOrders {
   orders: SellerEnrichedOrder[];
   pagination: {
@@ -39,7 +39,7 @@ export interface PaginatedSellerOrders {
 
 /**
  * Return all orders that contain items belonging to the given seller.
- * Only the seller's items are included in the response.
+ * Only the seller's items are included, plus the customer's name & email.
  */
 export async function getSellerOrders(
   sellerId: string,
@@ -60,6 +60,10 @@ export async function getSellerOrders(
     prisma.order.findMany({
       where,
       include: {
+        customer: {
+          // <-- added
+          select: { name: true, email: true },
+        },
         items: {
           where: { sellerId },
           include: {
@@ -99,6 +103,10 @@ export async function getSellerOrderById(
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
+      customer: {
+        // <-- added
+        select: { name: true, email: true },
+      },
       items: {
         where: { sellerId },
         include: {
@@ -120,37 +128,23 @@ export async function getSellerOrderById(
 
 /**
  * Update the status of an order on behalf of a seller.
- *
- * Allowed transitions:
- *   PENDING   → CONFIRMED
- *   CONFIRMED → SHIPPED
- *
- * The seller must have at least one item in the order.
- * Throws an error if the order is not found, the transition is invalid,
- * or the seller does not own any items in the order.
+ * (unchanged – already works correctly)
  */
 export async function updateOrderStatus(
   sellerId: string,
   orderId: string,
   newStatus: string,
 ): Promise<SellerEnrichedOrder> {
-  // 1. Fetch the order with full items to verify ownership and status
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
   });
 
-  if (!order) {
-    throw new Error('Order not found');
-  }
+  if (!order) throw new Error('Order not found');
 
-  // 2. Verify that the seller is present in at least one item
   const sellerItemExists = order.items.some((item) => item.sellerId === sellerId);
-  if (!sellerItemExists) {
-    throw new Error('Order not found');
-  }
+  if (!sellerItemExists) throw new Error('Order not found');
 
-  // 3. Validate the state transition
   const allowedTransitions: Record<string, string[]> = {
     PENDING: ['CONFIRMED'],
     CONFIRMED: ['SHIPPED'],
@@ -161,11 +155,11 @@ export async function updateOrderStatus(
     throw new Error(`Cannot move order from ${order.status} to ${newStatus}`);
   }
 
-  // 4. Perform the update – safe cast to Prisma enum, NO `any` anywhere
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: { status: newStatus as PrismaOrderStatus },
     include: {
+      customer: { select: { name: true, email: true } }, // <-- added
       items: {
         where: { sellerId },
         include: {
