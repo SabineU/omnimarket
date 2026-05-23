@@ -88,3 +88,23 @@ html.dark body {
 .animate-slide-in-right {
   animation: slideInRight 0.3s ease-out;
 }
+
+/* ---------------------------------------------------------------------------
+   Recharts tooltip – always dark background for readability
+   --------------------------------------------------------------------------- */
+.recharts-default-tooltip {
+  background-color: #1e293b !important; /* neutral-800 */
+  border: 1px solid #334155 !important; /* neutral-700 */
+  border-radius: 0.5rem !important;
+  color: #f1f5f9 !important; /* neutral-100 */
+  font-size: 0.875rem !important;
+  padding: 0.5rem 0.75rem !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Override dark-mode rule – keep it identical so it never changes */
+.dark .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
