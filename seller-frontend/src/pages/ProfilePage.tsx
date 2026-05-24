@@ -1,8 +1,6 @@
 // seller-frontend/src/pages/ProfilePage.tsx
-// Seller profile page – allows the seller to view and edit their store profile
-// (store name, description).  Uses the existing backend endpoints:
-//   GET /api/seller         → fetch profile
-//   POST /api/seller        → create/update profile
+// Seller profile page – allows the seller to view and edit their store profile.
+// FIXED: uses correct endpoints /seller/profile (GET) and PUT /seller/profile.
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -58,7 +56,7 @@ function ProfilePage(): React.JSX.Element {
   // Fetch the seller's existing profile on mount
   useEffect(() => {
     apiClient
-      .get<ProfileResponse>('/seller')
+      .get<ProfileResponse>('/seller/profile') // <-- fixed URL
       .then((res) => {
         const p = res.data.data.profile;
         setProfile(p);
@@ -75,11 +73,11 @@ function ProfilePage(): React.JSX.Element {
   // Submit the updated profile
   const onSubmit = async (data: ProfileFormValues): Promise<void> => {
     try {
-      const res = await apiClient.post<ProfileResponse>('/seller', data);
+      const res = await apiClient.put<ProfileResponse>('/seller/profile', data); // <-- fixed URL & method
       const updated = res.data.data.profile;
       setProfile(updated);
       reset({ storeName: updated.storeName, description: updated.description ?? '' });
-      // Optionally show a toast – we'll keep it simple with a success message
+      // Optionally show a toast – we'll keep it simple for now
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save profile';
       alert(message); // replace with toast in a later phase
