@@ -93,6 +93,14 @@ function Layout(): React.JSX.Element {
           >
             Orders
           </Link>
+          {/* ---- Ledger link ---- */}
+          <Link
+            to="/ledger"
+            className="block px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+            data-testid="nav-ledger"
+          >
+            Ledger
+          </Link>
           <Link
             to="/profile"
             className="block px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200"
