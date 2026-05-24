@@ -50,4 +50,25 @@ describe('LoginPage', () => {
     const errorMessage = await screen.findByText('Invalid credentials');
     expect(errorMessage).toBeInTheDocument();
   });
+
+  it('toggles password visibility when eye icon is clicked', async () => {
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: { data: { user: null } },
+    });
+    renderLogin();
+
+    const passwordInput = screen.getByTestId('seller-password-input');
+    const toggleButton = screen.getByTestId('seller-password-toggle');
+
+    // Initially password type
+    expect(passwordInput).toHaveAttribute('type', 'password');
+
+    // Click toggle
+    await userEvent.click(toggleButton);
+    expect(passwordInput).toHaveAttribute('type', 'text');
+
+    // Click again
+    await userEvent.click(toggleButton);
+    expect(passwordInput).toHaveAttribute('type', 'password');
+  });
 });
