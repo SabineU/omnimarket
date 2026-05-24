@@ -1,6 +1,9 @@
 // seller-frontend/src/pages/LedgerPage.tsx
 // Seller ledger page – shows earnings summary and transaction history.
+// FIXED: CSV export now uses the authenticated API client.
 import { useSellerLedger } from '../hooks/useSellerLedger';
+import toast from 'react-hot-toast'; // <-- added
+import { apiClient } from '../lib/api-client'; // <-- added
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -67,9 +70,31 @@ function LedgerPage(): React.JSX.Element {
   const { data, isLoading, error } = useSellerLedger();
 
   // ---- CSV download handler ----
-  const handleDownloadCsv = (): void => {
-    // We open the CSV export URL directly – the backend sets Content-Disposition
-    window.open('/api/seller/ledger/export/csv', '_blank');
+  const handleDownloadCsv = async (): Promise<void> => {
+    try {
+      // Use the authenticated API client so the Bearer token is sent.
+      // We ask for a blob response because the backend returns raw CSV text.
+      const response = await apiClient.get('/seller/ledger/export/csv', {
+        responseType: 'blob',
+      });
+
+      // Create a temporary download link and click it programmatically
+      const url = window.URL.createObjectURL(
+        new Blob([response.data as Blob], { type: 'text/csv' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'ledger.csv');
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CSV export error:', err);
+      toast.error('Failed to export CSV');
+    }
   };
 
   // ---- Loading state ----
