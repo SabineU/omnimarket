@@ -3,6 +3,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from './contexts/ThemeProvider';
 import App from './App';
 import './index.css';
 
@@ -15,7 +16,9 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
-    <Toaster position="top-right" />
+    <ThemeProvider>
+      <App />
+      <Toaster position="top-right" />
+    </ThemeProvider>
   </StrictMode>,
 );
