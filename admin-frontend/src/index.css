@@ -70,3 +70,22 @@ html.dark body {
   background-color: var(--color-neutral-900);
   color: var(--color-neutral-100);
 }
+
+/* ---------------------------------------------------------------------------
+   Recharts tooltip – always dark background for readability
+   --------------------------------------------------------------------------- */
+.recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.5rem !important;
+  color: #f1f5f9 !important;
+  font-size: 0.875rem !important;
+  padding: 0.5rem 0.75rem !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}

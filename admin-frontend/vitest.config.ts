@@ -21,6 +21,7 @@ export default defineConfig({
         'src/contexts/theme-context.ts',
         'src/hooks/useAuth.ts',
         'src/hooks/useTheme.ts',
+        'src/hooks/useAdminDashboard.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',

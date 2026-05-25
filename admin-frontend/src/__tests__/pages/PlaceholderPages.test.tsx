@@ -1,18 +1,13 @@
 // admin-frontend/src/__tests__/pages/PlaceholderPages.test.tsx
-// Simple render tests for placeholder pages.
+// Simple render tests for placeholder pages (Dashboard is tested separately).
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import Dashboard from '../../pages/Dashboard';
 import UsersPage from '../../pages/UsersPage';
 import SellersPage from '../../pages/SellersPage';
 import ProductsPage from '../../pages/ProductsPage';
 import OrdersPage from '../../pages/OrdersPage';
 
 describe('Placeholder pages', () => {
-  it('renders Dashboard', () => {
-    render(<Dashboard />);
-    expect(screen.getByTestId('admin-dashboard')).toBeInTheDocument();
-  });
   it('renders UsersPage', () => {
     render(<UsersPage />);
     expect(screen.getByTestId('admin-users-page')).toBeInTheDocument();
