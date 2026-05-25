@@ -2,6 +2,7 @@
 // Handles HTTP requests for admin operations.
 import type { Request, Response, NextFunction } from 'express';
 import * as adminService from '../services/admin.service.js';
+import * as categoryService from '../services/category.service.js'; // <-- added
 
 /** Helper to safely extract a single route parameter */
 function getParam(req: Request, name: string): string {
@@ -33,6 +34,27 @@ export async function approveSeller(
 // ---------------------------------------------------------------------------
 // Category CRUD
 // ---------------------------------------------------------------------------
+
+/**
+ * GET /api/admin/categories
+ * Returns the full category tree for the admin panel.
+ */
+export async function getAllCategories(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const tree = await categoryService.getCategoryTree();
+    res.status(200).json({
+      status: 'success',
+      data: { categories: tree },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function createCategory(
   req: Request,
   res: Response,
@@ -75,7 +97,7 @@ export async function deleteCategory(
 }
 
 // ---------------------------------------------------------------------------
-// Product Moderation (new)
+// Product Moderation
 // ---------------------------------------------------------------------------
 
 /**

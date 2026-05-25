@@ -22,4 +22,7 @@ router.put('/:id', validate(categoryUpdateSchema), adminController.updateCategor
 // DELETE /api/admin/categories/:id – delete a category
 router.delete('/:id', adminController.deleteCategory);
 
+// GET /api/admin/categories – get the full category tree
+router.get('/', adminController.getAllCategories);
+
 export default router;

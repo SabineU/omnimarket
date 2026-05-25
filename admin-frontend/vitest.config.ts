@@ -27,6 +27,8 @@ export default defineConfig({
         'src/hooks/useDeleteUser.ts',
         'src/hooks/useAdminProducts.ts',
         'src/hooks/useUpdateProductStatus.ts',
+        'src/hooks/useAdminCategories.ts',
+        'src/hooks/useCategoryMutations.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',
@@ -44,6 +46,7 @@ export default defineConfig({
         'src/pages/OrdersPage.tsx',
         'src/pages/UsersPage.tsx',
         'src/pages/ProductsPage.tsx',
+        'src/pages/CategoriesPage.tsx',
       ],
       exclude: ['src/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts'],
       reporter: ['text', 'html', 'lcov'],
