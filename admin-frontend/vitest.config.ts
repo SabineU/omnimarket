@@ -25,6 +25,8 @@ export default defineConfig({
         'src/hooks/useAdminUsers.ts',
         'src/hooks/useToggleUserActive.ts',
         'src/hooks/useDeleteUser.ts',
+        'src/hooks/useAdminProducts.ts',
+        'src/hooks/useUpdateProductStatus.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',
@@ -41,6 +43,7 @@ export default defineConfig({
         'src/pages/ProductsPage.tsx',
         'src/pages/OrdersPage.tsx',
         'src/pages/UsersPage.tsx',
+        'src/pages/ProductsPage.tsx',
       ],
       exclude: ['src/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts'],
       reporter: ['text', 'html', 'lcov'],
