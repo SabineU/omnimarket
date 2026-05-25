@@ -3,6 +3,7 @@ packages:
   - 'backend'
   - 'frontend'
   - 'seller-frontend'
+  - 'admin-frontend'
   - 'tests/*'
 allowBuilds:
   esbuild: false
