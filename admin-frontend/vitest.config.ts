@@ -22,11 +22,16 @@ export default defineConfig({
         'src/hooks/useAuth.ts',
         'src/hooks/useTheme.ts',
         'src/hooks/useAdminDashboard.ts',
+        'src/hooks/useAdminUsers.ts',
+        'src/hooks/useToggleUserActive.ts',
+        'src/hooks/useDeleteUser.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',
         'src/components/Layout.tsx',
         'src/components/ui/Button.tsx',
+        'src/components/ConfirmModal.tsx',
+        'src/components/ui/Modal.tsx',
 
         // Pages
         'src/pages/LoginPage.tsx',
@@ -35,6 +40,7 @@ export default defineConfig({
         'src/pages/SellersPage.tsx',
         'src/pages/ProductsPage.tsx',
         'src/pages/OrdersPage.tsx',
+        'src/pages/UsersPage.tsx',
       ],
       exclude: ['src/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts'],
       reporter: ['text', 'html', 'lcov'],
