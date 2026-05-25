@@ -14,6 +14,7 @@ function renderLayout(): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
+        <Route path="/login" element={<div>Login Page</div>} />
         <Route element={<Layout />}>
           <Route path="/" element={<div>Dashboard Content</div>} />
         </Route>

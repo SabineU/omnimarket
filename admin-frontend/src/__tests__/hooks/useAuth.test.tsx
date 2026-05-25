@@ -48,19 +48,15 @@ describe('useAuth', () => {
 
     const { result } = renderAuthHook();
 
+    // Wait for the initial loading to complete
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    /*await result.current.login('admin@test.com', 'password');
-    
-        expect(result.current.user).toEqual({
-          id: '1', email: 'admin@test.com', name: 'Admin', role: 'ADMIN',
-        });*/
-
-    // Replace lines 55-59 with this:
+    // Perform login (no need for act, renderHook handles it)
     await result.current.login('admin@test.com', 'password');
 
+    // Wait for the user state to update
     await waitFor(() => {
       expect(result.current.user).toEqual({
         id: '1',
