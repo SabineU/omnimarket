@@ -1,4 +1,5 @@
 // admin-frontend/src/__tests__/pages/ProductsPage.test.tsx
+// Unit tests for the admin ProductsPage (moderation queue).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -161,5 +162,99 @@ describe('ProductsPage', () => {
     expect(apiClient.patch).toHaveBeenCalledWith('/admin/products/1/status', {
       status: 'INACTIVE',
     });
+  });
+
+  // ---- NEW: filter and pagination tests ----
+
+  it('filters by status when the dropdown is changed', async () => {
+    // Initial load with default PENDING filter
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          products: [],
+          pagination: { currentPage: 1, totalPages: 0, totalItems: 0, limit: 10 },
+        },
+      },
+    });
+
+    renderWithProviders();
+
+    await screen.findByTestId('admin-products-page');
+
+    // Change status filter to ACTIVE
+    const select = screen.getByTestId('product-status-filter');
+    await userEvent.selectOptions(select, 'ACTIVE');
+
+    // The API should have been called with status=ACTIVE
+    const calls = (apiClient.get as ReturnType<typeof vi.fn>).mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall[0]).toContain('status=ACTIVE');
+  });
+
+  it('paginates to the next page when Next is clicked', async () => {
+    const page1Products = [
+      {
+        id: '1',
+        name: 'Product A',
+        status: 'PENDING',
+        basePrice: 10,
+        sellerName: 'Seller1',
+        categoryName: 'Cat',
+        slug: '',
+        description: '',
+        brand: null,
+        sellerId: '',
+        createdAt: '',
+      },
+    ];
+    const page2Products = [
+      {
+        id: '2',
+        name: 'Product B',
+        status: 'PENDING',
+        basePrice: 20,
+        sellerName: 'Seller2',
+        categoryName: 'Cat',
+        slug: '',
+        description: '',
+        brand: null,
+        sellerId: '',
+        createdAt: '',
+      },
+    ];
+
+    // First call: page 1
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          products: page1Products,
+          pagination: { currentPage: 1, totalPages: 2, totalItems: 2, limit: 10 },
+        },
+      },
+    });
+    // Second call: page 2
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          products: page2Products,
+          pagination: { currentPage: 2, totalPages: 2, totalItems: 2, limit: 10 },
+        },
+      },
+    });
+
+    renderWithProviders();
+
+    await screen.findByText('Product A');
+    expect(screen.queryByText('Product B')).not.toBeInTheDocument();
+
+    const nextButton = screen.getByTestId('next-page');
+    await userEvent.click(nextButton);
+
+    expect(await screen.findByText('Product B')).toBeInTheDocument();
+    // Product A should disappear (page 2 only has B)
+    expect(screen.queryByText('Product A')).not.toBeInTheDocument();
   });
 });

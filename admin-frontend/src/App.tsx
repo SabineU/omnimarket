@@ -11,7 +11,8 @@ import UsersPage from './pages/UsersPage';
 import SellersPage from './pages/SellersPage';
 import ProductsPage from './pages/ProductsPage';
 import OrdersPage from './pages/OrdersPage';
-import CategoriesPage from './pages/CategoriesPage'; // <-- added
+import CategoriesPage from './pages/CategoriesPage';
+import CouponsPage from './pages/CouponsPage'; // <-- added
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,8 @@ function App(): React.JSX.Element {
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                {/* ---- Coupons route ---- */}
+                <Route path="/coupons" element={<CouponsPage />} />
               </Route>
             </Route>
           </Routes>

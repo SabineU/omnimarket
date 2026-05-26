@@ -1,6 +1,6 @@
 // admin-frontend/src/components/Layout.tsx
 // Shared layout for the admin panel – sidebar navigation + top bar.
-// Now includes Categories in the sidebar.
+// Now includes Categories and Coupons in the sidebar.
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -114,6 +114,14 @@ function Layout(): React.JSX.Element {
             data-testid="nav-categories"
           >
             Categories
+          </Link>
+          {/* ---- Coupons link ---- */}
+          <Link
+            to="/coupons"
+            className="block px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+            data-testid="nav-coupons"
+          >
+            Coupons
           </Link>
         </aside>
 
