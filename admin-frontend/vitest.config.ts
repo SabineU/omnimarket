@@ -31,6 +31,8 @@ export default defineConfig({
         'src/hooks/useCategoryMutations.ts',
         'src/hooks/useAdminCoupons.ts',
         'src/hooks/useCouponMutations.ts',
+        'src/hooks/useAdminSettings.ts',
+        'src/hooks/useUpdateSetting.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',
@@ -50,6 +52,7 @@ export default defineConfig({
         'src/pages/ProductsPage.tsx',
         'src/pages/CategoriesPage.tsx',
         'src/pages/CouponsPage.tsx',
+        'src/pages/SettingsPage.tsx',
       ],
       exclude: ['src/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts'],
       reporter: ['text', 'html', 'lcov'],

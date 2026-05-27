@@ -123,6 +123,14 @@ function Layout(): React.JSX.Element {
           >
             Coupons
           </Link>
+          {/* ---- Settings link ---- */}
+          <Link
+            to="/settings"
+            className="block px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+            data-testid="nav-settings"
+          >
+            Settings
+          </Link>
         </aside>
 
         {/* Main content */}
