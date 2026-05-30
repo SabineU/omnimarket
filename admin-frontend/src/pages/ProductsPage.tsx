@@ -1,6 +1,6 @@
 // admin-frontend/src/pages/ProductsPage.tsx
 // Admin product moderation queue – list products, filter by status,
-// and approve / reject pending products.
+// and change any product's status via a dropdown + Update button.
 import { useState } from 'react';
 import { useAdminProducts } from '../hooks/useAdminProducts';
 import { useUpdateProductStatus } from '../hooks/useUpdateProductStatus';
@@ -42,12 +42,12 @@ function formatCurrency(amount: number | string): string {
 // Component
 // ---------------------------------------------------------------------------
 function ProductsPage(): React.JSX.Element {
-  // Filter state
+  // ---- Filter state ----
   const [statusFilter, setStatusFilter] = useState('PENDING'); // default to pending
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  // Product list query
+  // ---- Product list query ----
   const { data, isLoading, error } = useAdminProducts({
     status: statusFilter || undefined,
     search: search || undefined,
@@ -55,19 +55,28 @@ function ProductsPage(): React.JSX.Element {
     limit: 10,
   });
 
-  // Approve / reject mutation
+  // ---- Status update mutation ----
   const updateStatus = useUpdateProductStatus();
+
+  // ---- Per‑row status dropdown selections ----
+  // We store the currently selected status for each product in a Record.
+  // The key is the product ID; the value is the status string.
+  const [statusSelections, setStatusSelections] = useState<Record<string, string>>({});
 
   // ---- Handlers ----
   const products = data?.data.products ?? [];
   const pagination = data?.data.pagination;
 
-  const handleApprove = (productId: string): void => {
-    updateStatus.mutate({ productId, status: 'ACTIVE' });
-  };
-
-  const handleReject = (productId: string): void => {
-    updateStatus.mutate({ productId, status: 'INACTIVE' });
+  /**
+   * Called when the admin clicks the "Update" button for a specific product.
+   * Reads the current dropdown value (or falls back to the product's existing status)
+   * and sends a PATCH request to the backend.
+   */
+  const handleUpdateStatus = (productId: string): void => {
+    // Use the selected status if it exists, otherwise use the product's current status
+    const newStatus =
+      statusSelections[productId] ?? products.find((p) => p.id === productId)?.status ?? 'PENDING';
+    updateStatus.mutate({ productId, status: newStatus });
   };
 
   // ---- Loading state ----
@@ -156,6 +165,7 @@ function ProductsPage(): React.JSX.Element {
                   className="hover:bg-neutral-50 dark:hover:bg-neutral-700"
                   data-testid={`product-row-${product.id}`}
                 >
+                  {/* Product name + category */}
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900 dark:text-neutral-100">
                       {product.name}
@@ -164,41 +174,58 @@ function ProductsPage(): React.JSX.Element {
                       {product.categoryName}
                     </p>
                   </td>
+
+                  {/* Seller name */}
                   <td className="px-4 py-3 text-neutral-700 dark:text-neutral-300">
                     {product.sellerName}
                   </td>
+
+                  {/* Status badge (read‑only) */}
                   <td className="px-4 py-3 text-center">
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(product.status)}`}
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(product.status)}`}
                     >
                       {product.status}
                     </span>
                   </td>
+
+                  {/* Price */}
                   <td className="px-4 py-3 text-right font-semibold">
                     {formatCurrency(product.basePrice)}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    {product.status === 'PENDING' && (
-                      <div className="flex justify-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(product.id)}
-                          loading={updateStatus.isPending}
-                          data-testid={`approve-product-${product.id}`}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReject(product.id)}
-                          loading={updateStatus.isPending}
-                          data-testid={`reject-product-${product.id}`}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    )}
+
+                  {/* Actions – status dropdown + Update button */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      {/* Status dropdown */}
+                      <select
+                        value={statusSelections[product.id] ?? product.status}
+                        onChange={(e) =>
+                          setStatusSelections((prev) => ({
+                            ...prev,
+                            [product.id]: e.target.value,
+                          }))
+                        }
+                        className="rounded border border-neutral-300 px-2 py-1 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
+                        data-testid={`status-select-${product.id}`}
+                        aria-label={`Change status for ${product.name}`}
+                      >
+                        <option value="DRAFT">Draft</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                      </select>
+
+                      {/* Update button */}
+                      <Button
+                        size="sm"
+                        onClick={() => handleUpdateStatus(product.id)}
+                        loading={updateStatus.isPending}
+                        data-testid={`update-status-${product.id}`}
+                      >
+                        Update
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
