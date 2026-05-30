@@ -1,8 +1,9 @@
 // backend/src/services/admin.service.ts
 // Business logic for admin operations – seller approval, category management, product moderation.
+// UPDATED: getAllProducts now returns a flat sellerName/categoryName shape.
 import { prisma } from '../db.js';
-import type { SellerProfile, Category, Product } from '@prisma/client';
-import type { Prisma } from '@prisma/client'; // <-- changed to import type
+import type { SellerProfile, Category } from '@prisma/client'; // Removed Product
+import type { Prisma } from '@prisma/client';
 import type { ProductStatus } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
@@ -13,6 +14,32 @@ export class SellerNotFoundError extends Error {
     super(`Seller profile for user ${userId} not found`);
     this.name = 'SellerNotFoundError';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Type for the flattened product returned by moderation endpoints
+// ---------------------------------------------------------------------------
+export interface ModeratedProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  basePrice: number;
+  status: string;
+  brand: string | null;
+  sellerId: string;
+  sellerName: string; // flat – from seller.storeName
+  categoryName: string; // flat – from category.name
+  images: { id: string; url: string; altText: string; sortOrder: number }[];
+  variations: {
+    id: string;
+    sku: string;
+    size: string | null;
+    color: string | null;
+    priceModifier: number;
+    stockQty: number;
+  }[];
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,16 +112,16 @@ export async function deleteCategory(categoryId: string): Promise<void> {
 
 /**
  * Returns all products, optionally filtered by status.
- * Includes seller info (store name) and category name.
+ * Includes seller info (store name) and category name, flattened for the frontend.
  */
-export async function getAllProducts(options?: { status?: string }): Promise<Product[]> {
+export async function getAllProducts(options?: { status?: string }): Promise<ModeratedProduct[]> {
   const where: Prisma.ProductWhereInput = {};
 
   if (options?.status) {
     where.status = options.status as ProductStatus;
   }
 
-  return prisma.product.findMany({
+  const products = await prisma.product.findMany({
     where,
     include: {
       seller: { select: { storeName: true } },
@@ -104,16 +131,40 @@ export async function getAllProducts(options?: { status?: string }): Promise<Pro
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  // Flatten the nested relations into the top-level fields the frontend expects
+  return products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.description,
+    basePrice: Number(product.basePrice), // convert Decimal to number
+    status: product.status,
+    brand: product.brand,
+    sellerId: product.sellerId,
+    sellerName: product.seller?.storeName ?? '—', // flatten storeName
+    categoryName: product.category?.name ?? 'Unknown', // flatten category name
+    images: product.images,
+    variations: product.variations.map((v) => ({
+      ...v,
+      priceModifier: Number(v.priceModifier), // convert Decimal to number
+    })),
+    createdAt: product.createdAt.toISOString(),
+  }));
 }
 
 /**
  * Update the status of a product.
  * Throws if the product does not exist.
+ * Returns the flattened version for consistency.
  */
-export async function updateProductStatus(productId: string, status: string): Promise<Product> {
+export async function updateProductStatus(
+  productId: string,
+  status: string,
+): Promise<ModeratedProduct> {
   await prisma.product.findUniqueOrThrow({ where: { id: productId } });
 
-  return prisma.product.update({
+  const product = await prisma.product.update({
     where: { id: productId },
     data: { status: status as ProductStatus },
     include: {
@@ -123,6 +174,25 @@ export async function updateProductStatus(productId: string, status: string): Pr
       variations: true,
     },
   });
+
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.description,
+    basePrice: Number(product.basePrice),
+    status: product.status,
+    brand: product.brand,
+    sellerId: product.sellerId,
+    sellerName: product.seller?.storeName ?? '—',
+    categoryName: product.category?.name ?? 'Unknown',
+    images: product.images,
+    variations: product.variations.map((v) => ({
+      ...v,
+      priceModifier: Number(v.priceModifier),
+    })),
+    createdAt: product.createdAt.toISOString(),
+  };
 }
 
 // =============================================================================
@@ -131,18 +201,16 @@ export async function updateProductStatus(productId: string, status: string): Pr
 
 /**
  * A seller record enriched with user info for the admin verification table.
- * Combines fields from the User table (name, email) and SellerProfile table
- * (storeName, isApproved, commissionRate, etc.).
  */
 export interface SellerWithDetails {
-  userId: string; // The user's UUID (same as sellerProfile.userId)
-  name: string; // User's display name
-  email: string; // User's email address
-  storeName: string; // The seller's store/business name
-  description: string | null; // Optional store description
-  isApproved: boolean; // Whether admin has approved this seller
-  commissionRate: number; // Platform commission percentage (e.g., 10 = 10%)
-  createdAt: string; // ISO date string – when the seller registered
+  userId: string;
+  name: string;
+  email: string;
+  storeName: string;
+  description: string | null;
+  isApproved: boolean;
+  commissionRate: number;
+  createdAt: string;
 }
 
 /** Paginated result wrapper for the seller list */
@@ -158,37 +226,26 @@ export interface PaginatedSellers {
 
 /** Filtering and pagination options for the seller list */
 export interface SellerListOptions {
-  search?: string; // Search by name, email, or store name
-  isApproved?: boolean; // Filter by approval status (true = approved, false = pending)
+  search?: string;
+  isApproved?: boolean;
   page?: number;
   limit?: number;
 }
 
 /**
  * Retrieve a paginated, filterable list of all sellers with their profile details.
- * This is used by the admin panel's "Seller Verification" page.
- *
- * @param options - search, approval filter, pagination
- * @returns Paginated list of sellers enriched with user + profile info
  */
 export async function listSellers(options: SellerListOptions = {}): Promise<PaginatedSellers> {
-  // ---- 1. Normalise pagination ----
   const page = Math.max(1, options.page ?? 1);
   const limit = Math.min(50, Math.max(1, options.limit ?? 10));
   const skip = (page - 1) * limit;
 
-  // ---- 2. Build the WHERE clause for Prisma ----
-  // We query the SellerProfile table and include the related User.
-  // This gives us access to both user fields (name, email) and profile fields
-  // (storeName, isApproved, etc.) in a single query.
   const where: Prisma.SellerProfileWhereInput = {};
 
-  // Filter by approval status if specified
   if (options.isApproved !== undefined) {
     where.isApproved = options.isApproved;
   }
 
-  // Search across name, email, and store name (case‑insensitive)
   if (options.search) {
     const term = options.search;
     where.OR = [
@@ -198,24 +255,21 @@ export async function listSellers(options: SellerListOptions = {}): Promise<Pagi
     ];
   }
 
-  // ---- 3. Run both queries in parallel for efficiency ----
   const [sellerProfiles, totalItems] = await Promise.all([
     prisma.sellerProfile.findMany({
       where,
       include: {
         user: {
-          // Only select the fields we need for the table
           select: { id: true, name: true, email: true, createdAt: true },
         },
       },
-      orderBy: { createdAt: 'desc' }, // newest sellers first
+      orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
     }),
     prisma.sellerProfile.count({ where }),
   ]);
 
-  // ---- 4. Map the Prisma result to our SellerWithDetails shape ----
   const sellers: SellerWithDetails[] = sellerProfiles.map((profile) => ({
     userId: profile.userId,
     name: profile.user.name,
@@ -223,7 +277,6 @@ export async function listSellers(options: SellerListOptions = {}): Promise<Pagi
     storeName: profile.storeName,
     description: profile.description,
     isApproved: profile.isApproved,
-    // Prisma returns Decimal; convert to number for JSON serialisation
     commissionRate: Number(profile.commissionRate),
     createdAt: profile.user.createdAt.toISOString(),
   }));

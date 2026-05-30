@@ -2,7 +2,7 @@
 // Handles HTTP requests for admin operations.
 import type { Request, Response, NextFunction } from 'express';
 import * as adminService from '../services/admin.service.js';
-import * as categoryService from '../services/category.service.js'; // <-- added
+import * as categoryService from '../services/category.service.js';
 
 /** Helper to safely extract a single route parameter */
 function getParam(req: Request, name: string): string {
@@ -38,14 +38,11 @@ export async function approveSeller(
 /**
  * GET /api/admin/sellers
  * Returns a paginated, filterable list of all sellers with their profiles.
- * Query params: ?search=..., &isApproved=true|false, &page=1, &limit=10
  */
 export async function listSellers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    // Extract and parse query parameters
     const options: adminService.SellerListOptions = {
       search: req.query.search as string | undefined,
-      // Convert the string 'true'/'false' to a boolean, or undefined if not provided
       isApproved: req.query.isApproved !== undefined ? req.query.isApproved === 'true' : undefined,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,

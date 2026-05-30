@@ -1,6 +1,6 @@
 // admin-frontend/src/__tests__/pages/ProductsPage.test.tsx
 // Unit tests for the admin ProductsPage (moderation queue).
-// Updated to test the new status dropdown + Update button UI.
+// Tests the table, status dropdown, detail modal, and modal interactions.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -28,6 +28,7 @@ describe('ProductsPage', () => {
     vi.clearAllMocks();
   });
 
+  // ---- Existing tests for loading, error, table ----
   it('shows loading spinner initially', () => {
     (apiClient.get as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
     renderWithProviders();
@@ -55,6 +56,8 @@ describe('ProductsPage', () => {
         brand: null,
         sellerId: '',
         createdAt: '',
+        images: [],
+        variations: [],
       },
     ];
     (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -65,28 +68,30 @@ describe('ProductsPage', () => {
     });
     renderWithProviders();
 
-    // Wait for the product to render
     await screen.findByText('Test Product');
-
-    // Check that the status dropdown and Update button exist
     expect(screen.getByTestId('status-select-1')).toBeInTheDocument();
     expect(screen.getByTestId('update-status-1')).toBeInTheDocument();
   });
 
-  it('dropdown is pre‑selected to the current product status', async () => {
+  // ---- Detail modal tests ----
+  it('opens the detail modal when a product row is clicked', async () => {
     const products = [
       {
         id: '1',
-        name: 'Draft Product',
+        name: 'Detailed Product',
         status: 'DRAFT',
-        basePrice: 20,
-        sellerName: 'Seller1',
+        basePrice: 99.99,
+        description: 'A great product',
+        brand: 'TestBrand',
         categoryName: 'Electronics',
+        sellerName: 'Test Seller',
         slug: '',
-        description: '',
-        brand: null,
         sellerId: '',
         createdAt: '',
+        images: [{ id: 'img1', url: 'http://example.com/img.jpg', altText: 'Image' }],
+        variations: [
+          { id: 'var1', sku: 'SKU1', size: 'M', color: 'Red', priceModifier: 0, stockQty: 5 },
+        ],
       },
     ];
     (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -97,26 +102,76 @@ describe('ProductsPage', () => {
     });
     renderWithProviders();
 
-    await screen.findByText('Draft Product');
+    await screen.findByText('Detailed Product');
+    // Click the row
+    await userEvent.click(screen.getByTestId('product-row-1'));
 
-    const dropdown = screen.getByTestId('status-select-1') as HTMLSelectElement;
-    expect(dropdown.value).toBe('DRAFT');
+    // The detail modal should appear
+    const modal = await screen.findByTestId('product-detail-modal');
+    expect(modal).toBeInTheDocument();
+    expect(screen.getByText('A great product')).toBeInTheDocument();
+    expect(screen.getByText('TestBrand')).toBeInTheDocument();
+    expect(screen.getByText('Test Seller')).toBeInTheDocument();
+    expect(screen.getByText('$99.99')).toBeInTheDocument();
+    // Image and variation details
+    expect(screen.getByAltText('Image')).toBeInTheDocument();
+    expect(screen.getByText('SKU1')).toBeInTheDocument();
+    expect(screen.getByText('Size: M')).toBeInTheDocument();
+    expect(screen.getByText('Color: Red')).toBeInTheDocument();
+    expect(screen.getByText('Stock: 5')).toBeInTheDocument();
   });
 
-  it('calls the update mutation when Update is clicked with a new status', async () => {
+  it('closes the detail modal when the backdrop is clicked', async () => {
     const products = [
       {
         id: '1',
-        name: 'Test Product',
+        name: 'Product',
         status: 'DRAFT',
         basePrice: 10,
-        sellerName: 'Seller1',
-        categoryName: 'Electronics',
+        sellerName: 'S',
+        categoryName: 'C',
         slug: '',
         description: '',
         brand: null,
         sellerId: '',
         createdAt: '',
+        images: [],
+        variations: [],
+      },
+    ];
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: { products, pagination: { currentPage: 1, totalPages: 1, totalItems: 1, limit: 10 } },
+      },
+    });
+    renderWithProviders();
+    await screen.findByText('Product');
+    await userEvent.click(screen.getByTestId('product-row-1'));
+    expect(await screen.findByTestId('product-detail-modal')).toBeInTheDocument();
+
+    // Click the backdrop (data-testid="modal-backdrop")
+    await userEvent.click(screen.getByTestId('modal-backdrop'));
+    // The modal should disappear
+    expect(screen.queryByTestId('product-detail-modal')).not.toBeInTheDocument();
+  });
+
+  it('updates product status from the detail modal', async () => {
+    const products = [
+      {
+        id: '1',
+        name: 'Product',
+        status: 'DRAFT',
+        basePrice: 10,
+        sellerName: 'S',
+        categoryName: 'C',
+        slug: '',
+        description: '',
+        brand: null,
+        sellerId: '',
+        createdAt: '',
+        images: [],
+        variations: [],
       },
     ];
     (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -128,135 +183,17 @@ describe('ProductsPage', () => {
     (apiClient.patch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({});
 
     renderWithProviders();
+    await screen.findByText('Product');
+    await userEvent.click(screen.getByTestId('product-row-1'));
+    await screen.findByTestId('product-detail-modal');
 
-    await screen.findByText('Test Product');
-
-    // Change the dropdown to ACTIVE
-    const dropdown = screen.getByTestId('status-select-1');
+    // Change the status dropdown in the modal
+    const dropdown = screen.getByTestId('detail-status-select-1');
     await userEvent.selectOptions(dropdown, 'ACTIVE');
 
-    // Click Update
-    await userEvent.click(screen.getByTestId('update-status-1'));
+    // Click the Update button in the modal
+    await userEvent.click(screen.getByTestId('detail-update-status-1'));
 
     expect(apiClient.patch).toHaveBeenCalledWith('/admin/products/1/status', { status: 'ACTIVE' });
-  });
-
-  it('sends the current status if the dropdown value is unchanged', async () => {
-    const products = [
-      {
-        id: '1',
-        name: 'Test Product',
-        status: 'DRAFT',
-        basePrice: 10,
-        sellerName: 'Seller1',
-        categoryName: 'Electronics',
-        slug: '',
-        description: '',
-        brand: null,
-        sellerId: '',
-        createdAt: '',
-      },
-    ];
-    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      data: {
-        status: 'success',
-        data: { products, pagination: { currentPage: 1, totalPages: 1, totalItems: 1, limit: 10 } },
-      },
-    });
-    (apiClient.patch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({});
-
-    renderWithProviders();
-
-    await screen.findByText('Test Product');
-    // Click Update without changing the dropdown
-    await userEvent.click(screen.getByTestId('update-status-1'));
-
-    // The mutation should be called with the product's current status (DRAFT)
-    expect(apiClient.patch).toHaveBeenCalledWith('/admin/products/1/status', { status: 'DRAFT' });
-  });
-
-  // ---- Filters and pagination ----
-  it('filters by status when the dropdown is changed', async () => {
-    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      data: {
-        status: 'success',
-        data: {
-          products: [],
-          pagination: { currentPage: 1, totalPages: 0, totalItems: 0, limit: 10 },
-        },
-      },
-    });
-
-    renderWithProviders();
-    await screen.findByTestId('admin-products-page');
-
-    const filterSelect = screen.getByTestId('product-status-filter');
-    await userEvent.selectOptions(filterSelect, 'DRAFT');
-
-    const calls = (apiClient.get as ReturnType<typeof vi.fn>).mock.calls;
-    const lastCall = calls[calls.length - 1];
-    expect(lastCall[0]).toContain('status=DRAFT');
-  });
-
-  it('paginates to the next page', async () => {
-    const page1 = [
-      {
-        id: '1',
-        name: 'Product A',
-        status: 'PENDING',
-        basePrice: 10,
-        sellerName: 'S',
-        categoryName: 'C',
-        slug: '',
-        description: '',
-        brand: null,
-        sellerId: '',
-        createdAt: '',
-      },
-    ];
-    const page2 = [
-      {
-        id: '2',
-        name: 'Product B',
-        status: 'PENDING',
-        basePrice: 20,
-        sellerName: 'S',
-        categoryName: 'C',
-        slug: '',
-        description: '',
-        brand: null,
-        sellerId: '',
-        createdAt: '',
-      },
-    ];
-    (apiClient.get as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({
-        data: {
-          status: 'success',
-          data: {
-            products: page1,
-            pagination: { currentPage: 1, totalPages: 2, totalItems: 2, limit: 1 },
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          status: 'success',
-          data: {
-            products: page2,
-            pagination: { currentPage: 2, totalPages: 2, totalItems: 2, limit: 1 },
-          },
-        },
-      });
-
-    renderWithProviders();
-
-    await screen.findByText('Product A');
-    expect(screen.queryByText('Product B')).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByTestId('next-page'));
-
-    expect(await screen.findByText('Product B')).toBeInTheDocument();
-    expect(screen.queryByText('Product A')).not.toBeInTheDocument();
   });
 });

@@ -3,13 +3,35 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 
+// ---------------------------------------------------------------------------
+// Types matching the backend's GET /api/admin/products response
+// ---------------------------------------------------------------------------
+
+/** A single product image */
+export interface AdminProductImage {
+  id: string;
+  url: string;
+  altText: string;
+  sortOrder: number;
+}
+
+/** A single product variation (size/colour/stock) */
+export interface AdminProductVariation {
+  id: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  priceModifier: number | string; // can be string from Decimal
+  stockQty: number;
+}
+
 /** Shape of a product returned by the admin products endpoint */
 export interface AdminProduct {
   id: string;
   name: string;
   slug: string;
   description: string;
-  // FIXED: basePrice can be a string (PostgreSQL Decimal) or a number
+  // basePrice can be a string (PostgreSQL Decimal) or a number
   basePrice: number | string;
   status: string; // "DRAFT", "PENDING", "ACTIVE", "INACTIVE"
   brand: string | null;
@@ -17,6 +39,9 @@ export interface AdminProduct {
   sellerName: string;
   categoryName: string;
   createdAt: string;
+  // These fields are included by the backend (include: images, variations)
+  images: AdminProductImage[];
+  variations: AdminProductVariation[];
 }
 
 export interface AdminProductsResponse {
@@ -39,6 +64,10 @@ export interface AdminProductListParams {
   page?: number;
   limit?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 /**
  * Fetch products with optional status filter, search, and pagination.

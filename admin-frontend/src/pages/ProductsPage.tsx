@@ -1,10 +1,16 @@
 // admin-frontend/src/pages/ProductsPage.tsx
 // Admin product moderation queue – list products, filter by status,
-// and change any product's status via a dropdown + Update button.
+// change any product's status, and view full product details in a modal.
 import { useState } from 'react';
-import { useAdminProducts } from '../hooks/useAdminProducts';
+import {
+  useAdminProducts,
+  type AdminProduct,
+  type AdminProductImage,
+  type AdminProductVariation,
+} from '../hooks/useAdminProducts';
 import { useUpdateProductStatus } from '../hooks/useUpdateProductStatus';
 import { Button, Spinner } from '../components/ui';
+import Modal from '../components/ui/Modal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,9 +38,7 @@ function statusBadge(status: string): string {
  * and always returns a currency string like "$210.00".
  */
 function formatCurrency(amount: number | string): string {
-  // Convert to number if it's a string (e.g. "210" → 210)
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  // Guard against NaN – if parseFloat fails, return a fallback
   return Number.isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
 }
 
@@ -43,7 +47,7 @@ function formatCurrency(amount: number | string): string {
 // ---------------------------------------------------------------------------
 function ProductsPage(): React.JSX.Element {
   // ---- Filter state ----
-  const [statusFilter, setStatusFilter] = useState('PENDING'); // default to pending
+  const [statusFilter, setStatusFilter] = useState('PENDING');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -59,23 +63,36 @@ function ProductsPage(): React.JSX.Element {
   const updateStatus = useUpdateProductStatus();
 
   // ---- Per‑row status dropdown selections ----
-  // We store the currently selected status for each product in a Record.
-  // The key is the product ID; the value is the status string.
   const [statusSelections, setStatusSelections] = useState<Record<string, string>>({});
+
+  // ---- Detail modal state ----
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
 
   // ---- Handlers ----
   const products = data?.data.products ?? [];
   const pagination = data?.data.pagination;
 
-  /**
-   * Called when the admin clicks the "Update" button for a specific product.
-   * Reads the current dropdown value (or falls back to the product's existing status)
-   * and sends a PATCH request to the backend.
-   */
+  /** Open the detail modal for a specific product */
+  const openDetailModal = (product: AdminProduct): void => {
+    setSelectedProduct(product);
+    setStatusSelections((prev) => ({
+      ...prev,
+      [product.id]: product.status,
+    }));
+  };
+
+  /** Close the detail modal */
+  const closeDetailModal = (): void => {
+    setSelectedProduct(null);
+  };
+
+  /** Send a PATCH request to update the product status */
   const handleUpdateStatus = (productId: string): void => {
-    // Use the selected status if it exists, otherwise use the product's current status
     const newStatus =
-      statusSelections[productId] ?? products.find((p) => p.id === productId)?.status ?? 'PENDING';
+      statusSelections[productId] ??
+      products.find((p) => p.id === productId)?.status ??
+      selectedProduct?.status ??
+      'PENDING';
     updateStatus.mutate({ productId, status: newStatus });
   };
 
@@ -162,10 +179,13 @@ function ProductsPage(): React.JSX.Element {
               {products.map((product) => (
                 <tr
                   key={product.id}
-                  className="hover:bg-neutral-50 dark:hover:bg-neutral-700"
+                  onClick={() => openDetailModal(product)}
+                  className="hover:bg-neutral-50 dark:hover:bg-neutral-700 cursor-pointer"
                   data-testid={`product-row-${product.id}`}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${product.name}`}
                 >
-                  {/* Product name + category */}
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900 dark:text-neutral-100">
                       {product.name}
@@ -175,12 +195,10 @@ function ProductsPage(): React.JSX.Element {
                     </p>
                   </td>
 
-                  {/* Seller name */}
                   <td className="px-4 py-3 text-neutral-700 dark:text-neutral-300">
-                    {product.sellerName}
+                    {product.sellerName || '—'}
                   </td>
 
-                  {/* Status badge (read‑only) */}
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(product.status)}`}
@@ -189,15 +207,15 @@ function ProductsPage(): React.JSX.Element {
                     </span>
                   </td>
 
-                  {/* Price */}
                   <td className="px-4 py-3 text-right font-semibold">
                     {formatCurrency(product.basePrice)}
                   </td>
 
-                  {/* Actions – status dropdown + Update button */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      {/* Status dropdown */}
+                    <div
+                      className="flex items-center justify-center gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <select
                         value={statusSelections[product.id] ?? product.status}
                         onChange={(e) =>
@@ -215,8 +233,6 @@ function ProductsPage(): React.JSX.Element {
                         <option value="ACTIVE">Active</option>
                         <option value="INACTIVE">Inactive</option>
                       </select>
-
-                      {/* Update button */}
                       <Button
                         size="sm"
                         onClick={() => handleUpdateStatus(product.id)}
@@ -262,6 +278,146 @@ function ProductsPage(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {/* ==================================================================
+           PRODUCT DETAIL MODAL
+           ================================================================== */}
+      <Modal
+        isOpen={selectedProduct !== null}
+        onClose={closeDetailModal}
+        ariaLabel="Product details"
+      >
+        {selectedProduct && (
+          <div data-testid="product-detail-modal">
+            {/* Product name */}
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+              {selectedProduct.name}
+            </h2>
+
+            {/* Status badge */}
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(selectedProduct.status)}`}
+            >
+              {selectedProduct.status}
+            </span>
+
+            {/* Description */}
+            {selectedProduct.description && (
+              <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+                {selectedProduct.description}
+              </p>
+            )}
+
+            {/* Meta: Brand, Category, Seller, Price */}
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              {selectedProduct.brand && (
+                <div>
+                  <span className="text-neutral-500 dark:text-neutral-400">Brand:</span>{' '}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {selectedProduct.brand}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400">Category:</span>{' '}
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                  {selectedProduct.categoryName}
+                </span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400">Seller:</span>{' '}
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                  {selectedProduct.sellerName || '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400">Price:</span>{' '}
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                  {formatCurrency(selectedProduct.basePrice)}
+                </span>
+              </div>
+            </div>
+
+            {/* Images – small thumbnails */}
+            {selectedProduct.images && selectedProduct.images.length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Images ({selectedProduct.images.length})
+                </p>
+                <div className="flex gap-2 overflow-x-auto">
+                  {selectedProduct.images.map(
+                    (img: AdminProductImage, idx: number): React.JSX.Element => (
+                      <img
+                        key={img.id ?? idx}
+                        src={img.url}
+                        alt={img.altText}
+                        className="h-20 w-20 rounded object-cover border border-neutral-200 dark:border-neutral-700"
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Variations */}
+            {selectedProduct.variations && selectedProduct.variations.length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Variations ({selectedProduct.variations.length})
+                </p>
+                <ul className="space-y-1">
+                  {selectedProduct.variations.map(
+                    (v: AdminProductVariation, idx: number): React.JSX.Element => (
+                      <li
+                        key={v.id ?? idx}
+                        className="text-xs text-neutral-600 dark:text-neutral-400 flex gap-2"
+                      >
+                        <span className="font-mono">{v.sku}</span>
+                        {v.size && <span>Size: {v.size}</span>}
+                        {v.color && <span>Color: {v.color}</span>}
+                        <span>Stock: {v.stockQty}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {/* Status changer at the bottom of the modal */}
+            <div className="mt-6 border-t border-neutral-200 dark:border-neutral-700 pt-4">
+              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Update Status
+              </p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={statusSelections[selectedProduct.id] ?? selectedProduct.status}
+                  onChange={(e) =>
+                    setStatusSelections((prev) => ({
+                      ...prev,
+                      [selectedProduct.id]: e.target.value,
+                    }))
+                  }
+                  className="rounded border border-neutral-300 px-2 py-1 text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100"
+                  data-testid={`detail-status-select-${selectedProduct.id}`}
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+                <Button
+                  size="sm"
+                  onClick={() => handleUpdateStatus(selectedProduct.id)}
+                  loading={updateStatus.isPending}
+                  data-testid={`detail-update-status-${selectedProduct.id}`}
+                >
+                  Update
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
