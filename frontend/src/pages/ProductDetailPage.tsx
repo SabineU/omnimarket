@@ -1,7 +1,7 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays a single product with image gallery,
 // description, price, and add-to-cart functionality.
-// Now uses toast notifications instead of alert().
+// FIXED: clicking a thumbnail now switches the main image.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
@@ -11,9 +11,18 @@ import { useCartMutation } from '../hooks/useCartMutation';
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types – must match the backend's GET /api/products/:slug response
 // ---------------------------------------------------------------------------
 
+/** A single product image returned by the API */
+interface ProductImage {
+  id: string;
+  url: string;
+  altText: string;
+  sortOrder: number;
+}
+
+/** A product variation (size/colour) */
 interface Variation {
   id: string;
   size: string | null;
@@ -22,13 +31,14 @@ interface Variation {
   priceModifier: string | number;
 }
 
+/** Full product detail shape */
 interface ProductDetail {
   id: string;
   name: string;
   slug: string;
   description: string;
   basePrice: string | number;
-  images: string[];
+  images: ProductImage[]; // array of image objects
   sellerId: string;
   sellerName: string;
   categoryName: string;
@@ -46,21 +56,29 @@ interface ProductResponse {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Safely convert a price (string or number) to a number */
 function toNumber(value: string | number): number {
   return typeof value === 'string' ? parseFloat(value) : value;
 }
 
 // ---------------------------------------------------------------------------
-// Image component with fallback
+// Image component with fallback placeholder
 // ---------------------------------------------------------------------------
-
 interface ProductImageProps {
-  src: string;
-  alt: string;
+  src: string; // image URL
+  alt: string; // alt text
   className?: string;
+  onClick?: () => void; // optional click handler (for thumbnails)
+  'data-testid'?: string;
 }
 
-function ProductImage({ src, alt, className }: ProductImageProps): React.JSX.Element {
+function ProductImage({
+  src,
+  alt,
+  className,
+  onClick,
+  'data-testid': dataTestId,
+}: ProductImageProps): React.JSX.Element {
   const [failed, setFailed] = useState(false);
   const handleError = useCallback(() => setFailed(true), []);
 
@@ -68,6 +86,7 @@ function ProductImage({ src, alt, className }: ProductImageProps): React.JSX.Ele
     return (
       <div
         className={`flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 text-neutral-400 ${className ?? ''}`}
+        data-testid={dataTestId}
       >
         <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -80,11 +99,21 @@ function ProductImage({ src, alt, className }: ProductImageProps): React.JSX.Ele
       </div>
     );
   }
-  return <img src={src} alt={alt} className={className} onError={handleError} />;
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`${className ?? ''} ${onClick ? 'cursor-pointer' : ''}`}
+      onError={handleError}
+      onClick={onClick}
+      data-testid={dataTestId}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Page component
 // ---------------------------------------------------------------------------
 function ProductDetailPage(): React.JSX.Element {
   const { productSlug } = useParams<{ productSlug: string }>();
@@ -92,11 +121,11 @@ function ProductDetailPage(): React.JSX.Element {
   const { user } = useAuth();
   const addToCart = useCartMutation();
 
-  // The user can manually select a variation; if none selected,
-  // we'll use the first in‑stock one automatically (derived below).
+  // Variation selection and quantity
   const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
+  // ---- Fetch product by slug ----
   const { data, isLoading, error } = useQuery<ProductResponse, Error>({
     queryKey: ['product', productSlug],
     queryFn: async () => {
@@ -110,10 +139,18 @@ function ProductDetailPage(): React.JSX.Element {
   const product: ProductDetail | undefined =
     data?.data?.product ?? (data as { product?: ProductDetail })?.product;
 
-  // ---- Derived value: effective variation ID ----
-  // If the user hasn't picked one, fall back to the first in‑stock variation.
+  // ---- Derived value: effective variation ----
   const effectiveVariationId =
     selectedVariationId ?? product?.variations?.find((v) => v.stockQty > 0)?.id ?? null;
+
+  // ---- Image gallery state ----
+  // Track which image index is currently displayed as the main image.
+  // Defaults to 0 (the first image).
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  // Reset the selected image index when the product changes (e.g., navigating to a different product)
+  // but we use the product slug as a dependency. Simpler: reset on data load.
+  // Because the whole component re-renders when slug changes, the initial state (0) is fine.
 
   // ---- Loading state ----
   if (isLoading) {
@@ -156,15 +193,13 @@ function ProductDetailPage(): React.JSX.Element {
     );
   }
 
+  // ---- Add to cart handler ----
   const handleAddToCart = (): void => {
     if (!user) {
-      // Not logged in – redirect to login page, then back here after login
       navigate('/login', { state: { from: `/products/${product.slug}` } });
       return;
     }
 
-    // Fire the mutation – the hook itself handles success/error toasts,
-    // so we don't need callbacks here for basic feedback.
     addToCart.mutate({
       productId: product.id,
       variationId: effectiveVariationId,
@@ -172,6 +207,7 @@ function ProductDetailPage(): React.JSX.Element {
     });
   };
 
+  // ---- Price calculation ----
   const basePriceNum = toNumber(product.basePrice);
   const selectedVariation = product.variations.find(
     (v: Variation) => v.id === effectiveVariationId,
@@ -180,15 +216,20 @@ function ProductDetailPage(): React.JSX.Element {
     ? basePriceNum + toNumber(selectedVariation.priceModifier)
     : basePriceNum;
 
+  // Disable "Add to Cart" if no in‑stock variation is selected
   const isAddToCartDisabled = !!(
     user &&
     product.variations.length > 0 &&
     (!effectiveVariationId || (selectedVariation?.stockQty ?? 0) === 0)
   );
 
+  // Clamp selectedImageIndex to valid range in case the product has fewer images than expected
+  const safeIndex = Math.min(selectedImageIndex, product.images.length - 1);
+  const mainImage = product.images[safeIndex];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8" data-testid="product-detail-page">
-      {/* Breadcrumb */}
+      {/* ---- Breadcrumb ---- */}
       <nav className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
         <Link to="/" className="hover:text-primary-600">
           Home
@@ -204,21 +245,34 @@ function ProductDetailPage(): React.JSX.Element {
       <div className="grid gap-8 lg:grid-cols-2">
         {/* ---- Image gallery ---- */}
         <div className="space-y-4">
+          {/* Main image – displays the currently selected image */}
           <div className="aspect-square rounded-xl overflow-hidden">
             <ProductImage
-              src={product.images?.[0] ?? ''}
-              alt={product.name}
+              src={mainImage?.url ?? ''}
+              alt={mainImage?.altText ?? product.name}
               className="w-full h-full object-cover"
+              data-testid="main-product-image"
             />
           </div>
+
+          {/* Thumbnail gallery – clicking a thumbnail updates the main image */}
           {product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
-              {product.images.map((img: string, i: number) => (
-                <div key={i} className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
+              {product.images.map((img: ProductImage, i: number) => (
+                <div
+                  key={img.id ?? i}
+                  className={`w-20 h-20 rounded-lg overflow-hidden shrink-0 border-2 transition-colors ${
+                    i === safeIndex
+                      ? 'border-primary-500'
+                      : 'border-transparent hover:border-primary-300'
+                  }`}
+                >
                   <ProductImage
-                    src={img}
-                    alt={`${product.name} ${i + 1}`}
+                    src={img.url}
+                    alt={img.altText ?? `${product.name} ${i + 1}`}
                     className="w-full h-full object-cover"
+                    onClick={() => setSelectedImageIndex(i)}
+                    data-testid={`thumbnail-${i}`}
                   />
                 </div>
               ))}
@@ -299,6 +353,7 @@ function ProductDetailPage(): React.JSX.Element {
             </Button>
           </div>
 
+          {/* Description */}
           <div className="mt-8">
             <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
               Description

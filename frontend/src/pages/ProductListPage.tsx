@@ -1,17 +1,30 @@
 // frontend/src/pages/ProductListPage.tsx
 // Product listing page with search, filter, and sort controls.
+// FIXED: images are now correctly typed as an array of {url, altText} objects
+//        and the image component uses the url property.
 import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { Spinner } from '../components/ui';
 
+// ---------------------------------------------------------------------------
+// Types – must match the backend's GET /api/products response
+// ---------------------------------------------------------------------------
+
+/** A single product image as returned by the API */
+interface ProductImage {
+  url: string;
+  altText: string;
+}
+
+/** Shape of a product returned in the listing */
 interface Product {
   id: string;
   name: string;
   slug: string;
-  basePrice: string | number;
-  images: string[];
+  basePrice: string | number; // PostgreSQL Decimal can be a string
+  images: ProductImage[]; // <-- now an array of objects, not strings
   sellerName: string;
   categoryName?: string;
 }
@@ -28,21 +41,28 @@ interface ProductsResponse {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Safely convert a price (string or number) to a number */
 function toNumber(price: string | number): number {
   return typeof price === 'string' ? parseFloat(price) : price;
 }
 
-// Simple image component with fallback
-function ProductImage({
-  src,
-  alt,
-  className,
-}: {
-  src: string;
-  alt: string;
+// ---------------------------------------------------------------------------
+// ProductImage component – renders a product image with a fallback placeholder
+// ---------------------------------------------------------------------------
+interface ProductImageProps {
+  src: string; // URL of the image
+  alt: string; // Alt text for accessibility
   className?: string;
-}): React.JSX.Element {
+}
+
+function ProductImage({ src, alt, className }: ProductImageProps): React.JSX.Element {
   const [failed, setFailed] = useState(false);
+
+  // If the image failed to load or no src was provided, show a placeholder
   if (failed || !src) {
     return (
       <div
@@ -59,9 +79,14 @@ function ProductImage({
       </div>
     );
   }
+
+  // Normal render – the src is the actual image URL
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
 }
 
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 function ProductListPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('search') ?? '';
@@ -70,6 +95,7 @@ function ProductListPage(): React.JSX.Element {
   const page = parseInt(searchParams.get('page') ?? '1', 10);
   const [searchInput, setSearchInput] = useState(search);
 
+  // ---- Data fetching ----
   const { data, isLoading, error } = useQuery<ProductsResponse, Error>({
     queryKey: ['products', { search, category, sort, page }],
     queryFn: async () => {
@@ -84,7 +110,7 @@ function ProductListPage(): React.JSX.Element {
     },
   });
 
-  // Extract products with type‑safe checks (no `any`)
+  // ---- Extract products safely ----
   const rawData: unknown = data;
   let products: Product[] = [];
 
@@ -106,6 +132,7 @@ function ProductListPage(): React.JSX.Element {
     }
   }
 
+  // ---- Apply filters from search form ----
   const applyFilters = (): void => {
     const params = new URLSearchParams();
     if (searchInput) params.set('search', searchInput);
@@ -120,6 +147,7 @@ function ProductListPage(): React.JSX.Element {
         {category ? `Category: ${category}` : 'All Products'}
       </h1>
 
+      {/* ---- Search bar ---- */}
       <div className="flex gap-4 mb-8 flex-wrap">
         <input
           type="text"
@@ -146,15 +174,19 @@ function ProductListPage(): React.JSX.Element {
         )}
       </div>
 
+      {/* ---- Loading state ---- */}
       {isLoading && (
         <div className="flex justify-center py-12">
           <Spinner size="h-10 w-10" />
         </div>
       )}
+
+      {/* ---- Error state ---- */}
       {error && (
         <p className="text-error-500 text-center">Failed to load products: {error.message}</p>
       )}
 
+      {/* ---- Product grid ---- */}
       {!isLoading && !error && (
         <>
           {products.length > 0 ? (
@@ -166,10 +198,11 @@ function ProductListPage(): React.JSX.Element {
                   className="block rounded-xl border border-neutral-200 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden"
                   data-testid={`product-card-${product.id}`}
                 >
+                  {/* Image – now uses the correct url property from the first image object */}
                   <div className="aspect-square">
                     <ProductImage
-                      src={product.images?.[0] ?? ''}
-                      alt={product.name}
+                      src={product.images?.[0]?.url ?? ''}
+                      alt={product.images?.[0]?.altText ?? product.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -188,6 +221,7 @@ function ProductListPage(): React.JSX.Element {
               ))}
             </div>
           ) : (
+            /* Empty state */
             <div className="text-center py-12">
               <p className="text-neutral-500 dark:text-neutral-400">No products found.</p>
               {category && (
