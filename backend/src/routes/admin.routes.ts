@@ -13,6 +13,9 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize(UserRole.ADMIN)); // 'ADMIN' – exact value from the database
 
+// GET /api/admin/sellers – list all sellers with profiles (for verification interface)
+router.get('/sellers', adminController.listSellers);
+
 // PATCH /api/admin/sellers/:userId – approve or reject a seller
 router.patch('/sellers/:userId', validate(adminApproveSellerSchema), adminController.approveSeller);
 

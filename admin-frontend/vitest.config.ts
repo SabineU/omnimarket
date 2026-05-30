@@ -33,6 +33,8 @@ export default defineConfig({
         'src/hooks/useCouponMutations.ts',
         'src/hooks/useAdminSettings.ts',
         'src/hooks/useUpdateSetting.ts',
+        'src/hooks/useAdminSellers.ts',
+        'src/hooks/useApproveSeller.ts',
 
         // Components
         'src/components/ProtectedRoute.tsx',

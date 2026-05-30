@@ -9,14 +9,20 @@ import {
   deleteCategory,
   getAllProducts,
   updateProductStatus,
+  listSellers, // <-- NEW import
 } from '../../services/admin.service.js';
 
+// ---------------------------------------------------------------------------
+// Mock the database module – UPDATED to include sellerProfile.findMany & count
+// ---------------------------------------------------------------------------
 vi.mock('../../db.js', () => {
   return {
     prisma: {
       sellerProfile: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        findMany: vi.fn(), // <-- NEW: for listSellers
+        count: vi.fn(), // <-- NEW: for listSellers pagination
       },
       category: {
         create: vi.fn(),
@@ -40,9 +46,10 @@ beforeEach(() => {
 });
 
 // =============================================================================
-// Seller Approval (existing)
+// Seller Approval (existing tests – unchanged)
 // =============================================================================
 describe('approveSeller', () => {
+  // ... existing tests remain exactly as they are ...
   it('should approve a seller when profile exists and user is a seller', async () => {
     const mockProfile = { userId: 'seller-1', isApproved: false, user: { role: 'SELLER' } } as any;
     vi.mocked(prisma.sellerProfile.findUnique).mockResolvedValue(mockProfile);
@@ -78,7 +85,7 @@ describe('approveSeller', () => {
 });
 
 // =============================================================================
-// Category CRUD (existing)
+// Category CRUD (existing tests – unchanged)
 // =============================================================================
 describe('createCategory', () => {
   it('should create a category and return it', async () => {
@@ -128,7 +135,7 @@ describe('deleteCategory', () => {
 });
 
 // =============================================================================
-// Product Moderation (new)
+// Product Moderation (existing tests – unchanged)
 // =============================================================================
 describe('getAllProducts', () => {
   it('should return all products when no filter is provided', async () => {
@@ -187,5 +194,96 @@ describe('updateProductStatus', () => {
   it('should throw if product not found', async () => {
     vi.mocked(prisma.product.findUniqueOrThrow).mockRejectedValue(new Error('Not found'));
     await expect(updateProductStatus('bad-id', 'ACTIVE')).rejects.toThrow('Not found');
+  });
+});
+
+// =============================================================================
+// listSellers (NEW – seller verification listing)
+// =============================================================================
+describe('listSellers', () => {
+  it('should return paginated sellers with user details', async () => {
+    // Arrange: a seller profile with its related user
+    const mockProfile = {
+      userId: 'seller-1',
+      storeName: 'Tech Store',
+      description: 'Selling gadgets',
+      isApproved: false,
+      commissionRate: 10, // already a number in the mock (the service calls Number())
+      createdAt: new Date('2026-05-01'),
+      user: {
+        id: 'seller-1',
+        name: 'Bob Seller',
+        email: 'bob@test.com',
+        createdAt: new Date('2026-05-01'),
+      },
+    };
+
+    vi.mocked(prisma.sellerProfile.findMany).mockResolvedValue([mockProfile] as any);
+    vi.mocked(prisma.sellerProfile.count).mockResolvedValue(1);
+
+    // Act
+    const result = await listSellers({ page: 1, limit: 10 });
+
+    // Assert
+    expect(result.sellers).toHaveLength(1);
+    expect(result.sellers[0].userId).toBe('seller-1');
+    expect(result.sellers[0].name).toBe('Bob Seller');
+    expect(result.sellers[0].email).toBe('bob@test.com');
+    expect(result.sellers[0].storeName).toBe('Tech Store');
+    expect(result.sellers[0].isApproved).toBe(false);
+    expect(result.sellers[0].commissionRate).toBe(10);
+    expect(result.sellers[0].createdAt).toBe('2026-05-01T00:00:00.000Z');
+    expect(result.pagination.totalItems).toBe(1);
+    expect(result.pagination.currentPage).toBe(1);
+  });
+
+  it('should filter by approval status (isApproved = true)', async () => {
+    vi.mocked(prisma.sellerProfile.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.sellerProfile.count).mockResolvedValue(0);
+
+    await listSellers({ isApproved: true });
+
+    // Verify the where clause includes the isApproved filter
+    expect(prisma.sellerProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isApproved: true }),
+      }),
+    );
+  });
+
+  it('should filter by search term across name, email, and store name', async () => {
+    vi.mocked(prisma.sellerProfile.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.sellerProfile.count).mockResolvedValue(0);
+
+    await listSellers({ search: 'bob' });
+
+    // Verify the where clause includes an OR with three conditions
+    const callArgs = (prisma.sellerProfile.findMany as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(callArgs.where.OR).toHaveLength(3);
+  });
+
+  it('should respect pagination parameters', async () => {
+    vi.mocked(prisma.sellerProfile.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.sellerProfile.count).mockResolvedValue(50);
+
+    await listSellers({ page: 3, limit: 5 });
+
+    expect(prisma.sellerProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 10, // (page 3 - 1) * limit 5 = 10
+        take: 5,
+      }),
+    );
+  });
+
+  it('should return empty array when no sellers exist', async () => {
+    vi.mocked(prisma.sellerProfile.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.sellerProfile.count).mockResolvedValue(0);
+
+    const result = await listSellers();
+
+    expect(result.sellers).toHaveLength(0);
+    expect(result.pagination.totalItems).toBe(0);
+    expect(result.pagination.totalPages).toBe(0);
   });
 });

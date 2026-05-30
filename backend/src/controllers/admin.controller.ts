@@ -32,6 +32,40 @@ export async function approveSeller(
 }
 
 // ---------------------------------------------------------------------------
+// Seller Listing (for verification interface)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/admin/sellers
+ * Returns a paginated, filterable list of all sellers with their profiles.
+ * Query params: ?search=..., &isApproved=true|false, &page=1, &limit=10
+ */
+export async function listSellers(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    // Extract and parse query parameters
+    const options: adminService.SellerListOptions = {
+      search: req.query.search as string | undefined,
+      // Convert the string 'true'/'false' to a boolean, or undefined if not provided
+      isApproved: req.query.isApproved !== undefined ? req.query.isApproved === 'true' : undefined,
+      page: req.query.page ? Number(req.query.page) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    };
+
+    const result = await adminService.listSellers(options);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        sellers: result.sellers,
+        pagination: result.pagination,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Category CRUD
 // ---------------------------------------------------------------------------
 
