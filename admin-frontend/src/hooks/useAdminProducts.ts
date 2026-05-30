@@ -9,7 +9,8 @@ export interface AdminProduct {
   name: string;
   slug: string;
   description: string;
-  basePrice: number;
+  // FIXED: basePrice can be a string (PostgreSQL Decimal) or a number
+  basePrice: number | string;
   status: string; // "DRAFT", "PENDING", "ACTIVE", "INACTIVE"
   brand: string | null;
   sellerId: string;

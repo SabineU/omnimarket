@@ -26,9 +26,16 @@ function statusBadge(status: string): string {
   }
 }
 
-/** Format number as USD currency */
-function formatCurrency(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+/**
+ * Format a price for display.
+ * Accepts both number and string (PostgreSQL returns Decimal as string)
+ * and always returns a currency string like "$210.00".
+ */
+function formatCurrency(amount: number | string): string {
+  // Convert to number if it's a string (e.g. "210" → 210)
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  // Guard against NaN – if parseFloat fails, return a fallback
+  return Number.isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
 }
 
 // ---------------------------------------------------------------------------
