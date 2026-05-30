@@ -8,6 +8,7 @@ export interface CategoryNode {
   id: string;
   name: string;
   slug: string;
+  parentId?: string | null; // <-- ADDED: needed for filtering top‑level categories
   imageUrl?: string | null;
   children: CategoryNode[];
 }
