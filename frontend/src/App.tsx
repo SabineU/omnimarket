@@ -1,7 +1,9 @@
 // frontend/src/App.tsx
 // Main application component with all routes.
+// Includes default SEO meta tags via react‑helmet‑async.
 import { Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Helmet } from 'react-helmet-async'; // <-- NEW
 import { AuthProvider } from './contexts/AuthProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { WishlistProvider } from './contexts/WishlistProvider';
@@ -28,6 +30,31 @@ function App(): React.JSX.Element {
       <ThemeProvider>
         <AuthProvider>
           <WishlistProvider>
+            {/* Default SEO – overridden by pages with more specific tags */}
+            <Helmet>
+              <title>OmniMarket – Everything, All in One Place</title>
+              <meta
+                name="description"
+                content="OmniMarket is a multi‑vendor marketplace where you can buy and sell anything – electronics, fashion, home goods, and more."
+              />
+              {/* Open Graph (Facebook, LinkedIn, etc.) */}
+              <meta property="og:title" content="OmniMarket – Everything, All in One Place" />
+              <meta
+                property="og:description"
+                content="Discover millions of products from thousands of sellers."
+              />
+              <meta property="og:type" content="website" />
+              <meta property="og:url" content={window.location.href} />
+              <meta property="og:image" content="/logo.png" />
+              {/* Twitter Card */}
+              <meta name="twitter:card" content="summary" />
+              <meta name="twitter:title" content="OmniMarket" />
+              <meta
+                name="twitter:description"
+                content="Discover millions of products from thousands of sellers."
+              />
+              <meta name="twitter:image" content="/logo.png" />
+            </Helmet>
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<HomePage />} />

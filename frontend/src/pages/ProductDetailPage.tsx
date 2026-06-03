@@ -1,17 +1,19 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays a single product with image gallery,
-// description, price, add‑to‑cart, related products, and records a view
-// for the recently‑viewed strip.
+// description, price, add‑to‑cart, related products, records a view for the
+// recently‑viewed strip, and sets dynamic SEO meta tags.
 // FIXED: clicking a thumbnail now switches the main image.
 // NEW: related products section at the bottom.
 // NEW: records the viewed product ID via useRecentlyViewed.
+// NEW: sets <title>, <meta>, Open Graph, and Twitter Card tags.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useCallback, useEffect } from 'react'; // <-- added useEffect
+import { useState, useCallback, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async'; // <-- NEW
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../hooks/useAuth';
 import { useCartMutation } from '../hooks/useCartMutation';
-import { useRecentlyViewed } from '../hooks/useRecentlyViewed'; // <-- NEW
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -58,7 +60,7 @@ interface ProductDetail {
   sellerName: string;
   categoryName: string;
   variations: Variation[];
-  relatedProducts: RelatedProduct[]; // NEW: related items from the same category
+  relatedProducts: RelatedProduct[]; // related items from the same category
 }
 
 interface ProductResponse {
@@ -166,7 +168,6 @@ function ProductDetailPage(): React.JSX.Element {
   const { addProduct } = useRecentlyViewed();
 
   // Whenever the product ID becomes available, record it in the recently‑viewed list.
-  // The effect runs again only when product?.id or addProduct change (which is rare).
   useEffect(() => {
     if (product?.id) {
       addProduct(product.id);
@@ -178,8 +179,6 @@ function ProductDetailPage(): React.JSX.Element {
     selectedVariationId ?? product?.variations?.find((v) => v.stockQty > 0)?.id ?? null;
 
   // ---- Image gallery state ----
-  // Track which image index is currently displayed as the main image.
-  // Defaults to 0 (the first image).
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // ---- Loading state ----
@@ -223,6 +222,17 @@ function ProductDetailPage(): React.JSX.Element {
     );
   }
 
+  // ---- SEO meta tags for this product ----
+  // These go into the document <head> and help search engines and social networks.
+  const productTitle = `${product.name} – OmniMarket`;
+  // Truncate description to ~160 characters for SEO best practice
+  const description =
+    product.description.length > 160
+      ? `${product.description.slice(0, 157)}...`
+      : product.description;
+  const imageUrl = product.images?.[0]?.url ?? '/logo.png';
+  const currentUrl = window.location.href;
+
   // ---- Add to cart handler ----
   const handleAddToCart = (): void => {
     if (!user) {
@@ -246,19 +256,34 @@ function ProductDetailPage(): React.JSX.Element {
     ? basePriceNum + toNumber(selectedVariation.priceModifier)
     : basePriceNum;
 
-  // Disable "Add to Cart" if no in‑stock variation is selected
   const isAddToCartDisabled = !!(
     user &&
     product.variations.length > 0 &&
     (!effectiveVariationId || (selectedVariation?.stockQty ?? 0) === 0)
   );
 
-  // Clamp selectedImageIndex to valid range in case the product has fewer images than expected
   const safeIndex = Math.min(selectedImageIndex, product.images.length - 1);
   const mainImage = product.images[safeIndex];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8" data-testid="product-detail-page">
+      {/* ---- Dynamic SEO meta tags ---- */}
+      <Helmet>
+        <title>{productTitle}</title>
+        <meta name="description" content={description} />
+        {/* Open Graph (Facebook, LinkedIn, etc.) */}
+        <meta property="og:title" content={productTitle} />
+        <meta property="og:description" content={description} />
+        <meta property="og:type" content="product" />
+        <meta property="og:url" content={currentUrl} />
+        <meta property="og:image" content={imageUrl} />
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={productTitle} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={imageUrl} />
+      </Helmet>
+
       {/* ---- Breadcrumb ---- */}
       <nav className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
         <Link to="/" className="hover:text-primary-600">
@@ -275,7 +300,6 @@ function ProductDetailPage(): React.JSX.Element {
       <div className="grid gap-8 lg:grid-cols-2">
         {/* ---- Image gallery ---- */}
         <div className="space-y-4">
-          {/* Main image – displays the currently selected image */}
           <div className="aspect-square rounded-xl overflow-hidden">
             <ProductImage
               src={mainImage?.url ?? ''}
@@ -285,7 +309,6 @@ function ProductDetailPage(): React.JSX.Element {
             />
           </div>
 
-          {/* Thumbnail gallery – clicking a thumbnail updates the main image */}
           {product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
               {product.images.map((img: ProductImage, i: number) => (
@@ -403,7 +426,6 @@ function ProductDetailPage(): React.JSX.Element {
           <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
             You might also like
           </h2>
-          {/* Responsive grid: 2 columns on phone, 3 on tablet, 4 on desktop */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {product.relatedProducts.map((rp) => (
               <Link
@@ -413,7 +435,6 @@ function ProductDetailPage(): React.JSX.Element {
                 data-testid={`related-product-${rp.slug}`}
               >
                 <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow dark:border-neutral-700 dark:bg-neutral-800 h-full flex flex-col">
-                  {/* Image */}
                   <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-700 mb-3">
                     {rp.images[0] ? (
                       <ProductImage
@@ -439,15 +460,12 @@ function ProductDetailPage(): React.JSX.Element {
                       </div>
                     )}
                   </div>
-                  {/* Name */}
                   <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 line-clamp-2 flex-1">
                     {rp.name}
                   </h3>
-                  {/* Price */}
                   <p className="mt-1 text-sm font-bold text-primary-600">
                     {formatPrice(rp.basePrice)}
                   </p>
-                  {/* Rating (if any) */}
                   {rp.averageRating !== null && (
                     <p className="text-xs text-neutral-500 mt-1">
                       ⭐ {rp.averageRating.toFixed(1)} ({rp.reviewCount})

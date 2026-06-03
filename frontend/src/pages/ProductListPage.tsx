@@ -1,10 +1,11 @@
 // frontend/src/pages/ProductListPage.tsx
-// Product listing page with search, filter, and sort controls.
+// Product listing page with search, filter, and sort controls, plus dynamic SEO meta tags.
 // FIXED: images are now correctly typed as an array of {url, altText} objects
 //        and the image component uses the url property.
 import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Helmet } from 'react-helmet-async'; // <-- NEW
 import { apiClient } from '../lib/api-client';
 import { Spinner } from '../components/ui';
 
@@ -24,7 +25,7 @@ interface Product {
   name: string;
   slug: string;
   basePrice: string | number; // PostgreSQL Decimal can be a string
-  images: ProductImage[]; // <-- now an array of objects, not strings
+  images: ProductImage[]; // now an array of objects, not strings
   sellerName: string;
   categoryName?: string;
 }
@@ -143,6 +144,19 @@ function ProductListPage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8" data-testid="product-list-page">
+      {/* ---- Dynamic SEO meta tags ---- */}
+      <Helmet>
+        <title>{category ? `${category} – OmniMarket` : 'All Products – OmniMarket'}</title>
+        <meta
+          name="description"
+          content={
+            category
+              ? `Shop the best selection of ${category} products on OmniMarket.`
+              : 'Browse thousands of products from all categories on OmniMarket.'
+          }
+        />
+      </Helmet>
+
       <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
         {category ? `Category: ${category}` : 'All Products'}
       </h1>
