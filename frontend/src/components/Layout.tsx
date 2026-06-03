@@ -1,23 +1,25 @@
 // frontend/src/components/Layout.tsx
 // Shared layout wrapper for all customer pages.
 // Contains a responsive header (logo, search, nav, cart drawer, dark‑mode toggle,
-// wishlist) and the common footer.  The cart badge now shows the live item count.
+// wishlist), the common footer, and the cookie consent banner.
+// The cart badge now shows the live item count.
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
 import { useWishlist } from '../hooks/useWishlist';
-import { useCart } from '../hooks/useCart'; // <-- added
+import { useCart } from '../hooks/useCart';
 import SearchBar from './SearchBar';
 import MegaMenu from './MegaMenu';
 import CartDrawer from './CartDrawer';
 import Footer from './Footer';
+import CookieBanner from './CookieBanner'; // <-- NEW: cookie consent banner
 
 function Layout(): React.JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { count: wishlistCount } = useWishlist();
-  const { data: cartData } = useCart(); // <-- added
+  const { data: cartData } = useCart();
   const navigate = useNavigate();
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -179,6 +181,9 @@ function Layout(): React.JSX.Element {
       <main className="flex-1 mx-auto max-w-7xl px-4 py-8 w-full">
         <Outlet />
       </main>
+
+      {/* ---- Cookie Consent Banner – appears on every page until accepted/declined ---- */}
+      <CookieBanner />
 
       <Footer />
 

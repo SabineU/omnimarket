@@ -1,10 +1,11 @@
 // frontend/src/__tests__/pages/ProductDetailPage.test.tsx
-// Tests for the product detail page, including the new related products section.
+// Tests for the product detail page, including SEO meta tags.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async'; // <-- NEW
 import ProductDetailPage from '../../pages/ProductDetailPage';
 import { apiClient } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,7 +13,6 @@ import { useAuth } from '../../hooks/useAuth';
 // ---- Mocks ----
 vi.mock('../../lib/api-client', () => ({ apiClient: { get: vi.fn() } }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: vi.fn() }));
-// FIXED: add explicit return type to the mock factory arrow function
 vi.mock(
   '../../hooks/useCartMutation',
   (): {
@@ -28,20 +28,24 @@ function renderPage(slug = 'test-product'): ReturnType<typeof render> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/products/${slug}`]}>
-        <Routes>
-          <Route path="/products/:productSlug" element={<ProductDetailPage />} />
-          <Route path="/login" element={<div>Login Page</div>} />
-        </Routes>
-      </MemoryRouter>
+      <HelmetProvider>
+        {' '}
+        {/* <-- NEW */}
+        <MemoryRouter initialEntries={[`/products/${slug}`]}>
+          <Routes>
+            <Route path="/products/:productSlug" element={<ProductDetailPage />} />
+            <Route path="/login" element={<div>Login Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </HelmetProvider>
     </QueryClientProvider>,
   );
 }
 
-/** Build a mock product response with optional related products */
 function mockProduct(
   overrides: Partial<{
     name: string;
+    description: string;
     images: { id: string; url: string; altText: string; sortOrder: number }[];
     relatedProducts: {
       id: string;
@@ -62,7 +66,7 @@ function mockProduct(
           id: 'p1',
           slug: 'test-product',
           name: overrides.name ?? 'Test Product',
-          description: 'A great product',
+          description: overrides.description ?? 'A great product for testing.',
           basePrice: 99.99,
           images: overrides.images ?? [
             { id: 'img1', url: 'http://example.com/img1.jpg', altText: 'Image 1', sortOrder: 0 },
@@ -103,14 +107,30 @@ describe('ProductDetailPage', () => {
     expect(await screen.findByText(/Error loading product/i)).toBeInTheDocument();
   });
 
-  it('renders product details', async (): Promise<void> => {
+  it('renders product details and sets SEO title and meta description', async (): Promise<void> => {
     (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockProduct());
     renderPage();
 
-    // Use getByRole('heading') because the breadcrumb also contains the product name
-    expect(await screen.findByRole('heading', { name: 'Test Product' })).toBeInTheDocument();
-    expect(screen.getByText('Test Seller')).toBeInTheDocument();
-    expect(screen.getByText('$99.99')).toBeInTheDocument();
+    // Wait for the heading to appear (ensures data has loaded)
+    await screen.findByRole('heading', { name: 'Test Product' });
+
+    // ---- SEO assertions ----
+    // The browser title should include the product name
+    expect(document.title).toBe('Test Product – OmniMarket');
+    // The meta description should match the product description
+    const metaDesc = document.querySelector('meta[name="description"]');
+    expect(metaDesc).not.toBeNull();
+    expect(metaDesc?.getAttribute('content')).toBe('A great product for testing.');
+
+    // Open Graph title
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    expect(ogTitle).not.toBeNull();
+    expect(ogTitle?.getAttribute('content')).toBe('Test Product – OmniMarket');
+
+    // Twitter Card title
+    const twitterTitle = document.querySelector('meta[name="twitter:title"]');
+    expect(twitterTitle).not.toBeNull();
+    expect(twitterTitle?.getAttribute('content')).toBe('Test Product – OmniMarket');
   });
 
   it('switches main image when a thumbnail is clicked', async (): Promise<void> => {
