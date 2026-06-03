@@ -1,9 +1,16 @@
 // backend/src/services/public-product.service.ts
 // Business logic for the public product listing and detail.
 // Supports search, filtering by category and price, sorting, and pagination.
+// UPDATED: getProductBySlug now includes a "relatedProducts" field
+//          (same category, excluding the current product).
+
 import { prisma } from '../db.js';
 import type { Product, ProductImage, ProductVariation } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
+
+// =============================================================================
+// Types
+// =============================================================================
 
 /** Type for a product returned in the public listing */
 export type PublicProduct = Product & {
@@ -13,6 +20,22 @@ export type PublicProduct = Product & {
   averageRating: number | null;
   reviewCount: number;
 };
+
+/** A lightweight product used in the "Related Products" section */
+export interface RelatedProduct {
+  id: string;
+  name: string;
+  slug: string;
+  basePrice: number;
+  images: { url: string; altText: string }[];
+  averageRating: number | null;
+  reviewCount: number;
+}
+
+/** The full detail response including related products */
+export interface PublicProductDetail extends PublicProduct {
+  relatedProducts: RelatedProduct[];
+}
 
 /** Options that can be passed to the listing endpoint */
 export interface ProductListOptions {
@@ -36,11 +59,30 @@ export interface PaginatedProducts {
   };
 }
 
+// =============================================================================
+// Helpers
+// =============================================================================
+
 /** A minimal recursive type for the category tree used in the helper */
 interface CategoryNode {
   id: string;
   children: CategoryNode[];
 }
+
+/** Collect a category’s id and all its descendant ids */
+function collectCategoryIds(category: CategoryNode): string[] {
+  const ids = [category.id];
+  if (category.children && category.children.length > 0) {
+    for (const child of category.children) {
+      ids.push(...collectCategoryIds(child));
+    }
+  }
+  return ids;
+}
+
+// =============================================================================
+// Public functions
+// =============================================================================
 
 /**
  * Retrieves a paginated, filtered, sorted list of ACTIVE products.
@@ -157,9 +199,11 @@ export async function getPublicProducts(options: ProductListOptions): Promise<Pa
 }
 
 /**
- * Retrieve a single product by its URL‑friendly slug.
+ * Retrieve a single product by its URL‑friendly slug,
+ * INCLUDING related products (same category, up to 4).
  */
-export async function getProductBySlug(slug: string): Promise<PublicProduct> {
+export async function getProductBySlug(slug: string): Promise<PublicProductDetail> {
+  // ---- 1. Fetch the main product ----
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
@@ -186,7 +230,8 @@ export async function getProductBySlug(slug: string): Promise<PublicProduct> {
   const averageRating =
     reviewCount > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount : null;
 
-  return {
+  // Build the main product object
+  const mainProduct: PublicProduct = {
     ...rest,
     seller: {
       id: seller.userId, // map userId → id
@@ -195,14 +240,45 @@ export async function getProductBySlug(slug: string): Promise<PublicProduct> {
     averageRating,
     reviewCount,
   };
-}
 
-function collectCategoryIds(category: CategoryNode): string[] {
-  const ids = [category.id];
-  if (category.children && category.children.length > 0) {
-    for (const child of category.children) {
-      ids.push(...collectCategoryIds(child));
-    }
-  }
-  return ids;
+  // ---- 2. Fetch related products (same category, excluding current product, up to 4) ----
+  const relatedProductsRaw = await prisma.product.findMany({
+    where: {
+      categoryId: product.categoryId,
+      id: { not: product.id }, // exclude the current product
+      status: 'ACTIVE', // only show active products
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      basePrice: true,
+      images: { take: 1, orderBy: { sortOrder: 'asc' } }, // only need the first image
+      reviews: { select: { rating: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 4, // at most 4 related products
+  });
+
+  // Map raw related products to the RelatedProduct shape
+  const relatedProducts: RelatedProduct[] = relatedProductsRaw.map((rp) => {
+    const rpReviewCount = rp.reviews.length;
+    const rpAverageRating =
+      rpReviewCount > 0 ? rp.reviews.reduce((sum, r) => sum + r.rating, 0) / rpReviewCount : null;
+    return {
+      id: rp.id,
+      name: rp.name,
+      slug: rp.slug,
+      basePrice: Number(rp.basePrice), // Decimal → number
+      images: rp.images.map((img) => ({ url: img.url, altText: img.altText })),
+      averageRating: rpAverageRating,
+      reviewCount: rpReviewCount,
+    };
+  });
+
+  // ---- 3. Return the combined result ----
+  return {
+    ...mainProduct,
+    relatedProducts,
+  };
 }

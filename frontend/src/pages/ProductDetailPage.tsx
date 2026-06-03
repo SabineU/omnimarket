@@ -1,7 +1,8 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays a single product with image gallery,
-// description, price, and add-to-cart functionality.
+// description, price, add‑to‑cart, and related products.
 // FIXED: clicking a thumbnail now switches the main image.
+// NEW: related products section at the bottom.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
@@ -31,6 +32,17 @@ interface Variation {
   priceModifier: string | number;
 }
 
+/** A lightweight product for the "Related Products" section */
+interface RelatedProduct {
+  id: string;
+  name: string;
+  slug: string;
+  basePrice: number | string; // Decimal can be string
+  images: { url: string; altText: string }[];
+  averageRating: number | null;
+  reviewCount: number;
+}
+
 /** Full product detail shape */
 interface ProductDetail {
   id: string;
@@ -38,11 +50,12 @@ interface ProductDetail {
   slug: string;
   description: string;
   basePrice: string | number;
-  images: ProductImage[]; // array of image objects
+  images: ProductImage[]; // main gallery images
   sellerId: string;
   sellerName: string;
   categoryName: string;
   variations: Variation[];
+  relatedProducts: RelatedProduct[]; // NEW: related items from the same category
 }
 
 interface ProductResponse {
@@ -59,6 +72,12 @@ interface ProductResponse {
 /** Safely convert a price (string or number) to a number */
 function toNumber(value: string | number): number {
   return typeof value === 'string' ? parseFloat(value) : value;
+}
+
+/** Format a price for display */
+function formatPrice(value: number | string): string {
+  const num = toNumber(value);
+  return `$${num.toFixed(2)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,10 +166,6 @@ function ProductDetailPage(): React.JSX.Element {
   // Track which image index is currently displayed as the main image.
   // Defaults to 0 (the first image).
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-
-  // Reset the selected image index when the product changes (e.g., navigating to a different product)
-  // but we use the product slug as a dependency. Simpler: reset on data load.
-  // Because the whole component re-renders when slug changes, the initial state (0) is fine.
 
   // ---- Loading state ----
   if (isLoading) {
@@ -364,6 +379,71 @@ function ProductDetailPage(): React.JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* ==================================================================
+           RELATED PRODUCTS – "You might also like"
+           ================================================================== */}
+      {product.relatedProducts && product.relatedProducts.length > 0 && (
+        <section className="mt-16" data-testid="related-products-section">
+          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
+            You might also like
+          </h2>
+          {/* Responsive grid: 2 columns on phone, 3 on tablet, 4 on desktop */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {product.relatedProducts.map((rp) => (
+              <Link
+                key={rp.id}
+                to={`/products/${rp.slug}`}
+                className="group"
+                data-testid={`related-product-${rp.slug}`}
+              >
+                <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow dark:border-neutral-700 dark:bg-neutral-800 h-full flex flex-col">
+                  {/* Image */}
+                  <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-700 mb-3">
+                    {rp.images[0] ? (
+                      <ProductImage
+                        src={rp.images[0].url}
+                        alt={rp.images[0].altText ?? rp.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400">
+                        <svg
+                          className="h-10 w-10"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  {/* Name */}
+                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 line-clamp-2 flex-1">
+                    {rp.name}
+                  </h3>
+                  {/* Price */}
+                  <p className="mt-1 text-sm font-bold text-primary-600">
+                    {formatPrice(rp.basePrice)}
+                  </p>
+                  {/* Rating (if any) */}
+                  {rp.averageRating !== null && (
+                    <p className="text-xs text-neutral-500 mt-1">
+                      ⭐ {rp.averageRating.toFixed(1)} ({rp.reviewCount})
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
