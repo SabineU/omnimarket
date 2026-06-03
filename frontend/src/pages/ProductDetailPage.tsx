@@ -1,7 +1,7 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – image gallery, description, price, add‑to‑cart,
 // related products, customer reviews, recently viewed tracking, SEO tags,
-// and seller rating.
+// seller rating, and wishlist button.
 // FIXED: strict equality and undefined checks for sellerRating and reviewCount.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCartMutation } from '../hooks/useCartMutation';
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
 import { useProductReviews } from '../hooks/useProductReviews';
+import WishlistButton from '../components/WishlistButton'; // <-- NEW
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -317,7 +318,6 @@ function ProductDetailPage(): React.JSX.Element {
             <span className="font-medium text-neutral-900 dark:text-neutral-100">
               {product.sellerName}
             </span>
-            {/* FIXED: check for null and undefined */}
             {product.sellerRating !== null &&
               product.sellerRating !== undefined &&
               product.sellerRating > 0 && (
@@ -330,6 +330,22 @@ function ProductDetailPage(): React.JSX.Element {
                 </span>
               )}
           </p>
+
+          {/* ---- Wishlist button (compact heart + text) ---- */}
+          <div className="mt-2">
+            <WishlistButton
+              product={{
+                id: product.id,
+                name: product.name,
+                slug: product.slug,
+                basePrice: toNumber(product.basePrice),
+                imageUrl: product.images?.[0]?.url ?? null,
+              }}
+              compact={false}
+              data-testid="wishlist-button-detail"
+            />
+          </div>
+
           <p className="mt-4 text-3xl font-bold text-primary-600">${displayPrice.toFixed(2)}</p>
 
           {product.variations.length > 0 && (
@@ -443,7 +459,6 @@ function ProductDetailPage(): React.JSX.Element {
       <section className="mt-16" data-testid="product-reviews-section">
         <h2 className="text-xl font-bold mb-6">
           Customer Reviews
-          {/* FIXED: check for null and undefined */}
           {product.reviewCount !== null &&
             product.reviewCount !== undefined &&
             product.reviewCount > 0 && (

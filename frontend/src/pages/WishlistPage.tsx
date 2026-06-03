@@ -1,18 +1,19 @@
 // frontend/src/pages/WishlistPage.tsx
 // Displays user's own wishlist (with remove buttons) or a shared wishlist
-// (read‑only). A "Copy Wishlist Link" button allows sharing the current
-// wishlist via a URL containing the encoded items.
-// FIXED: "Create your own wishlist" button now checks auth state.
+// (read‑only).  The shared view now includes WishlistButtons so the
+// visitor can quickly add items to their own wishlist.
+// A "Copy Wishlist Link" button allows sharing the current wishlist.
 import { Link, useSearchParams } from 'react-router-dom';
 import { useWishlist } from '../hooks/useWishlist';
-import { useAuth } from '../hooks/useAuth'; // <-- NEW
+import { useAuth } from '../hooks/useAuth';
 import { Card, Button } from '../components/ui';
+import WishlistButton from '../components/WishlistButton'; // <-- NEW
 import toast from 'react-hot-toast';
 import type { WishlistItem } from '../contexts/wishlist-context';
 
 function WishlistPage(): React.JSX.Element {
   const { items, count, removeItem } = useWishlist();
-  const { user } = useAuth(); // <-- NEW
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
   // ---- Shared wishlist? ----
@@ -60,7 +61,6 @@ function WishlistPage(): React.JSX.Element {
       <div data-testid="shared-wishlist">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Shared Wishlist</h1>
-          {/* FIXED: if logged in, link to own wishlist; otherwise to login */}
           <Link to={user ? '/wishlist' : '/login'}>
             <Button variant="outline">Create your own wishlist</Button>
           </Link>
@@ -77,7 +77,15 @@ function WishlistPage(): React.JSX.Element {
             data-testid="shared-wishlist-grid"
           >
             {sharedItems.map((item) => (
-              <Card key={item.id} className="flex flex-col">
+              <Card key={item.id} className="flex flex-col relative">
+                {/* Wishlist heart button – allows the visitor to save this item */}
+                <div className="absolute top-2 right-2 z-10">
+                  <WishlistButton
+                    product={item}
+                    compact
+                    data-testid={`shared-wishlist-button-${item.id}`}
+                  />
+                </div>
                 <Link to={`/products/${item.slug}`}>
                   {item.imageUrl && (
                     <img
