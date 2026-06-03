@@ -1,14 +1,17 @@
 // frontend/src/pages/ProductDetailPage.tsx
 // Product detail page – displays a single product with image gallery,
-// description, price, add‑to‑cart, and related products.
+// description, price, add‑to‑cart, related products, and records a view
+// for the recently‑viewed strip.
 // FIXED: clicking a thumbnail now switches the main image.
 // NEW: related products section at the bottom.
+// NEW: records the viewed product ID via useRecentlyViewed.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react'; // <-- added useEffect
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../hooks/useAuth';
 import { useCartMutation } from '../hooks/useCartMutation';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed'; // <-- NEW
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -157,6 +160,18 @@ function ProductDetailPage(): React.JSX.Element {
   // Extract product safely
   const product: ProductDetail | undefined =
     data?.data?.product ?? (data as { product?: ProductDetail })?.product;
+
+  // ---- Recently Viewed tracking ----
+  // This hook gives us an addProduct function that stores the ID in localStorage.
+  const { addProduct } = useRecentlyViewed();
+
+  // Whenever the product ID becomes available, record it in the recently‑viewed list.
+  // The effect runs again only when product?.id or addProduct change (which is rare).
+  useEffect(() => {
+    if (product?.id) {
+      addProduct(product.id);
+    }
+  }, [product?.id, addProduct]);
 
   // ---- Derived value: effective variation ----
   const effectiveVariationId =

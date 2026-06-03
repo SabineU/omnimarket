@@ -58,3 +58,32 @@ export async function getBySlug(req: Request, res: Response, next: NextFunction)
     next(error);
   }
 }
+
+/**
+ * GET /api/products/recently-viewed?ids=id1,id2,id3
+ * Returns lightweight product cards for the given comma‑separated IDs.
+ */
+export async function getRecentlyViewed(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const rawIds = req.query.ids as string | undefined;
+    if (!rawIds) {
+      res.status(200).json({ status: 'success', data: { products: [] } });
+      return;
+    }
+
+    // Split comma‑separated IDs and filter out invalid UUIDs (basic check)
+    const ids = rawIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+
+    const products = await publicProductService.getProductsByIds(ids);
+    res.status(200).json({ status: 'success', data: { products } });
+  } catch (error) {
+    next(error);
+  }
+}

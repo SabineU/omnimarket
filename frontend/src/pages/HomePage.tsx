@@ -1,10 +1,11 @@
 // frontend/src/pages/HomePage.tsx
-// OmniMarket homepage – hero, category cards, and category‑focused product
-// sections (inspired by Amazon's layout).  Each top‑level category shows a
-// row of its newest products with a "See more" link.
+// OmniMarket homepage – hero, category cards, category‑focused product
+// sections (inspired by Amazon's layout), and a Recently Viewed strip.
 import { Link } from 'react-router-dom';
 import { useCategories } from '../hooks/useCategories';
 import { useHomepageSections, type HomepageSection } from '../hooks/useHomepageSections';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed'; // <-- NEW
+import RecentlyViewedStrip from '../components/RecentlyViewedStrip'; // <-- NEW
 import { Card, Button, Spinner } from '../components/ui';
 import WishlistButton from '../components/WishlistButton';
 
@@ -84,7 +85,6 @@ function SectionProductCard({ product }: SectionProductCardProps): React.JSX.Ele
         {/* Name, price, rating */}
         <h3 className="text-sm font-semibold line-clamp-2">{product.name}</h3>
         <p className="text-primary-600 font-bold mt-1">${toPrice(product.basePrice)}</p>
-        {/* FIXED: use strict inequality !== null instead of != null */}
         {product.averageRating !== null && (
           <p className="text-sm text-neutral-500 mt-auto">
             ⭐ {product.averageRating.toFixed(1)} ({product.reviewCount} reviews)
@@ -138,8 +138,11 @@ function HomePage(): React.JSX.Element {
   // Existing category cards data
   const { data: catData, isLoading: catLoading, error: catError } = useCategories();
 
-  // New: homepage sections (Electronics, Fashion, Home & Garden, etc.)
+  // Homepage category sections (Electronics, Fashion, Home & Garden, etc.)
   const { sections, isLoading: sectionsLoading, error: sectionsError } = useHomepageSections(4);
+
+  // Recently viewed product IDs (for the strip at the bottom)
+  const { ids: recentIds } = useRecentlyViewed();
 
   // Combined loading / error states
   const isLoading = catLoading || sectionsLoading;
@@ -221,7 +224,7 @@ function HomePage(): React.JSX.Element {
       </section>
 
       {/* ================================================================ */}
-      {/* Category Product Sections (NEW – replaces Featured Products)      */}
+      {/* Category Product Sections (replaces old Featured Products)       */}
       {/* ================================================================ */}
       <div data-testid="homepage-sections">
         {isLoading && (
@@ -245,6 +248,11 @@ function HomePage(): React.JSX.Element {
           </p>
         )}
       </div>
+
+      {/* ================================================================ */}
+      {/* Recently Viewed Strip (NEW – shows products the user visited)    */}
+      {/* ================================================================ */}
+      <RecentlyViewedStrip ids={recentIds} />
     </div>
   );
 }

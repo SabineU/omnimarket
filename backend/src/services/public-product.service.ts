@@ -282,3 +282,52 @@ export async function getProductBySlug(slug: string): Promise<PublicProductDetai
     relatedProducts,
   };
 }
+
+/**
+ * Retrieve a list of active products by their IDs.
+ * Used for the "Recently Viewed" strip.
+ * Returns a lightweight product shape (no variations, only first image).
+ * Products are returned in the same order as the input IDs.
+ * @param ids – array of product UUIDs
+ */
+export async function getProductsByIds(ids: string[]): Promise<RelatedProduct[]> {
+  // Remove duplicates while preserving order
+  const uniqueIds = [...new Set(ids)];
+
+  if (uniqueIds.length === 0) return [];
+
+  // Fetch products that match the given IDs and are ACTIVE
+  const products = await prisma.product.findMany({
+    where: {
+      id: { in: uniqueIds },
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      basePrice: true,
+      images: { take: 1, orderBy: { sortOrder: 'asc' } },
+      reviews: { select: { rating: true } },
+    },
+  });
+
+  // Sort the result back into the original order of uniqueIds
+  const idToIndex = new Map(uniqueIds.map((id, idx) => [id, idx]));
+  const sorted = products.sort((a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
+
+  return sorted.map((p) => {
+    const reviewCount = p.reviews.length;
+    const averageRating =
+      reviewCount > 0 ? p.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount : null;
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      basePrice: Number(p.basePrice),
+      images: p.images.map((img) => ({ url: img.url, altText: img.altText })),
+      averageRating,
+      reviewCount,
+    };
+  });
+}

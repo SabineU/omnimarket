@@ -8,6 +8,9 @@ const router = Router();
 // GET /api/products
 router.get('/', publicProductController.list);
 
+// GET /api/products/recently-viewed
+router.get('/recently-viewed', publicProductController.getRecentlyViewed);
+
 // GET /api/products/:slug
 router.get('/:slug', publicProductController.getBySlug);
 
