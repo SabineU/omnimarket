@@ -1,33 +1,28 @@
 // backend/src/services/auth.service.ts
 // Business logic for authentication (register, login, tokens, password reset).
-// FIXED: registerUser now creates a SellerProfile automatically when
-//        the user is a SELLER, so they can immediately create products.
+// UPDATED: now sends real password reset emails via SendGrid instead of
+//          only returning devToken.
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { prisma } from '../db.js';
 import type { User, UserRole } from '@prisma/client';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
+import { sendPasswordResetEmail } from './email.service.js'; // <-- NEW
 
 // ---------------------------------------------------------------------------
 // Types & Helpers
 // ---------------------------------------------------------------------------
 
-/** Successful authentication result returned to the controller */
 export interface AuthResult {
   user: Omit<User, 'passwordHash'>;
   accessToken: string;
   refreshToken: string;
 }
 
-/** Remove sensitive fields before sending a user object to the client */
 export function sanitizeUser(user: User): Omit<User, 'passwordHash'> {
   const { passwordHash: _passwordHash, ...safe } = user;
   return safe;
 }
-
-// ---------------------------------------------------------------------------
-// Custom Errors
-// ---------------------------------------------------------------------------
 
 export class UserExistsError extends Error {
   constructor(message: string) {
@@ -68,112 +63,55 @@ export class TokenInvalidError extends Error {
 // Public Functions – Registration, Login, Token Refresh
 // ---------------------------------------------------------------------------
 
-/**
- * Register a new user.
- * Throws UserExistsError if the email is already taken.
- * Returns the new user (sanitized) along with access + refresh tokens.
- *
- * If the role is SELLER, a corresponding SellerProfile is created
- * automatically so that the foreign‑key constraint on products is
- * satisfied immediately.  The profile starts unapproved — an admin
- * must approve it before the seller's products become visible.
- *
- * @param data.role – 'CUSTOMER' or 'SELLER' (uppercase, matching Prisma enum).
- *                    Defaults to 'CUSTOMER' if not provided.
- */
 export async function registerUser(data: {
   email: string;
   password: string;
   name: string;
   role?: UserRole;
 }): Promise<AuthResult> {
-  // 1. Check if email exists
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existing) {
-    throw new UserExistsError('A user with this email already exists');
-  }
+  if (existing) throw new UserExistsError('A user with this email already exists');
 
-  // 2. Hash the password (12 salt rounds)
   const passwordHash = await bcrypt.hash(data.password, 12);
-
-  // 3. Determine the role – only allow CUSTOMER or SELLER
-  //    (never ADMIN via self‑registration)
   const role: UserRole = data.role === 'SELLER' ? 'SELLER' : 'CUSTOMER';
 
-  // 4. Create user (tokenVersion defaults to 0)
   const user = await prisma.user.create({
-    data: {
-      email: data.email,
-      passwordHash,
-      name: data.name,
-      role,
-    },
+    data: { email: data.email, passwordHash, name: data.name, role },
   });
 
-  // 5. If the user is a seller, create a SellerProfile automatically.
-  //    This is required because the products table has a foreign key
-  //    referencing seller_profiles.userId.
-  //    The store name defaults to the user's name; an admin must approve
-  //    the profile before the seller can go live.
   if (role === 'SELLER') {
     await prisma.sellerProfile.create({
-      data: {
-        userId: user.id,
-        storeName: user.name,
-        description: null,
-        isApproved: false,
-      },
+      data: { userId: user.id, storeName: user.name, description: null, isApproved: false },
     });
   }
 
-  // 6. Generate tokens
   const accessToken = generateAccessToken({ id: user.id, role: user.role });
-  const refreshToken = generateRefreshToken({
-    id: user.id,
-    tokenVersion: user.tokenVersion,
-  });
-
+  const refreshToken = generateRefreshToken({ id: user.id, tokenVersion: user.tokenVersion });
   return { user: sanitizeUser(user), accessToken, refreshToken };
 }
 
-/**
- * Log in an existing user.
- */
 export async function loginUser(data: { email: string; password: string }): Promise<AuthResult> {
   const user = await prisma.user.findUnique({ where: { email: data.email } });
-  if (!user) {
-    throw new InvalidCredentialsError();
-  }
+  if (!user) throw new InvalidCredentialsError();
 
   const isPasswordValid = await bcrypt.compare(data.password, user.passwordHash);
-  if (!isPasswordValid) {
-    throw new InvalidCredentialsError();
-  }
+  if (!isPasswordValid) throw new InvalidCredentialsError();
 
   const accessToken = generateAccessToken({ id: user.id, role: user.role });
-  const refreshToken = generateRefreshToken({
-    id: user.id,
-    tokenVersion: user.tokenVersion,
-  });
-
+  const refreshToken = generateRefreshToken({ id: user.id, tokenVersion: user.tokenVersion });
   return { user: sanitizeUser(user), accessToken, refreshToken };
 }
 
-/**
- * Refresh an access token using a valid refresh token (rotation).
- */
 export async function refreshUserToken(incomingRefreshToken: string): Promise<AuthResult> {
   let payload;
   try {
     payload = verifyRefreshToken(incomingRefreshToken);
   } catch {
-    throw new TokenRefreshError('Invalid or expired refresh token');
+    throw new TokenRefreshError();
   }
 
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user) {
-    throw new TokenRefreshError('User no longer exists');
-  }
+  if (!user) throw new TokenRefreshError('User no longer exists');
 
   if (payload.tokenVersion !== user.tokenVersion) {
     throw new TokenRefreshError('Refresh token has been revoked');
@@ -195,29 +133,44 @@ export async function refreshUserToken(incomingRefreshToken: string): Promise<Au
 
 /**
  * Initiate a password reset flow.
+ * Creates a reset token, saves it in the DB, and sends an email
+ * to the user (if the email exists).
+ * @param email – the user's email
+ * @returns the plain reset token (for dev/test purposes) OR null if user not found
  */
 export async function requestPasswordReset(email: string): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return null;
 
+  // Delete any existing tokens for this user
   await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
+  // Generate a cryptographically secure random token (80 hex chars)
   const plainToken = crypto.randomBytes(40).toString('hex');
   const tokenHash = await bcrypt.hash(plainToken, 10);
 
+  // Save the hashed token with a 1‑hour expiry
   await prisma.passwordResetToken.create({
     data: {
       userId: user.id,
       tokenHash,
-      expiresAt: new Date(Date.now() + 3600_000),
+      expiresAt: new Date(Date.now() + 3600_000), // 1 hour
     },
   });
 
+  // Send the real email (best‑effort – don't block the response)
+  sendPasswordResetEmail(email, plainToken).catch((err) => {
+    console.error('Failed to send password reset email:', err);
+  });
+
+  // Return the plain token so that in dev/test environments we can still log it
   return plainToken;
 }
 
 /**
  * Complete a password reset.
+ * Verifies the plain token against the stored hash, updates the password,
+ * and deletes the used token.
  */
 export async function resetPassword(plainToken: string, newPassword: string): Promise<void> {
   const activeTokens = await prisma.passwordResetToken.findMany({
