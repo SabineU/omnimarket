@@ -1,26 +1,23 @@
 // frontend/src/pages/ProductDetailPage.tsx
-// Product detail page – displays a single product with image gallery,
-// description, price, add‑to‑cart, related products, records a view for the
-// recently‑viewed strip, and sets dynamic SEO meta tags.
-// FIXED: clicking a thumbnail now switches the main image.
-// NEW: related products section at the bottom.
-// NEW: records the viewed product ID via useRecentlyViewed.
-// NEW: sets <title>, <meta>, Open Graph, and Twitter Card tags.
+// Product detail page – image gallery, description, price, add‑to‑cart,
+// related products, customer reviews, recently viewed tracking, SEO tags,
+// and seller rating.
+// FIXED: strict equality and undefined checks for sellerRating and reviewCount.
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useCallback, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async'; // <-- NEW
+import { Helmet } from 'react-helmet-async';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../hooks/useAuth';
 import { useCartMutation } from '../hooks/useCartMutation';
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
+import { useProductReviews } from '../hooks/useProductReviews';
 import { Button, Spinner } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Types – must match the backend's GET /api/products/:slug response
 // ---------------------------------------------------------------------------
 
-/** A single product image returned by the API */
 interface ProductImage {
   id: string;
   url: string;
@@ -28,7 +25,6 @@ interface ProductImage {
   sortOrder: number;
 }
 
-/** A product variation (size/colour) */
 interface Variation {
   id: string;
   size: string | null;
@@ -37,62 +33,78 @@ interface Variation {
   priceModifier: string | number;
 }
 
-/** A lightweight product for the "Related Products" section */
 interface RelatedProduct {
   id: string;
   name: string;
   slug: string;
-  basePrice: number | string; // Decimal can be string
+  basePrice: number | string;
   images: { url: string; altText: string }[];
   averageRating: number | null;
   reviewCount: number;
 }
 
-/** Full product detail shape */
 interface ProductDetail {
   id: string;
   name: string;
   slug: string;
   description: string;
   basePrice: string | number;
-  images: ProductImage[]; // main gallery images
+  images: ProductImage[];
   sellerId: string;
   sellerName: string;
+  sellerRating?: number | null;
+  sellerReviewCount?: number;
+  averageRating?: number | null;
+  reviewCount?: number;
   categoryName: string;
   variations: Variation[];
-  relatedProducts: RelatedProduct[]; // related items from the same category
+  relatedProducts: RelatedProduct[];
 }
 
 interface ProductResponse {
   status: string;
-  data: {
-    product: ProductDetail;
-  };
+  data: { product: ProductDetail };
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Safely convert a price (string or number) to a number */
 function toNumber(value: string | number): number {
   return typeof value === 'string' ? parseFloat(value) : value;
 }
 
-/** Format a price for display */
 function formatPrice(value: number | string): string {
   const num = toNumber(value);
   return `$${num.toFixed(2)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Image component with fallback placeholder
-// ---------------------------------------------------------------------------
+function Stars({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md' }): React.JSX.Element {
+  const sizeClass = size === 'md' ? 'text-base' : 'text-xs';
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 ${sizeClass}`}
+      aria-label={`${rating} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`h-4 w-4 ${star <= rating ? 'text-yellow-400' : 'text-neutral-300 dark:text-neutral-600'}`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
 interface ProductImageProps {
-  src: string; // image URL
-  alt: string; // alt text
+  src: string;
+  alt: string;
   className?: string;
-  onClick?: () => void; // optional click handler (for thumbnails)
+  onClick?: () => void;
   'data-testid'?: string;
 }
 
@@ -123,7 +135,6 @@ function ProductImage({
       </div>
     );
   }
-
   return (
     <img
       src={src}
@@ -145,11 +156,9 @@ function ProductDetailPage(): React.JSX.Element {
   const { user } = useAuth();
   const addToCart = useCartMutation();
 
-  // Variation selection and quantity
   const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
-  // ---- Fetch product by slug ----
   const { data, isLoading, error } = useQuery<ProductResponse, Error>({
     queryKey: ['product', productSlug],
     queryFn: async () => {
@@ -159,29 +168,28 @@ function ProductDetailPage(): React.JSX.Element {
     enabled: !!productSlug,
   });
 
-  // Extract product safely
   const product: ProductDetail | undefined =
     data?.data?.product ?? (data as { product?: ProductDetail })?.product;
 
-  // ---- Recently Viewed tracking ----
-  // This hook gives us an addProduct function that stores the ID in localStorage.
   const { addProduct } = useRecentlyViewed();
-
-  // Whenever the product ID becomes available, record it in the recently‑viewed list.
   useEffect(() => {
-    if (product?.id) {
-      addProduct(product.id);
-    }
+    if (product?.id) addProduct(product.id);
   }, [product?.id, addProduct]);
 
-  // ---- Derived value: effective variation ----
   const effectiveVariationId =
     selectedVariationId ?? product?.variations?.find((v) => v.stockQty > 0)?.id ?? null;
 
-  // ---- Image gallery state ----
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // ---- Loading state ----
+  const [reviewPage, setReviewPage] = useState(1);
+  const { data: reviewsData, isLoading: reviewsLoading } = useProductReviews(
+    product?.id,
+    reviewPage,
+    5,
+  );
+  const reviews = reviewsData?.data.reviews ?? [];
+  const reviewsPagination = reviewsData?.data.pagination;
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -190,14 +198,11 @@ function ProductDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Error state ----
   if (error) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Error loading product
-        </h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">{error.message}</p>
+        <h1 className="text-xl font-bold">Error loading product</h1>
+        <p className="mt-2">{error.message}</p>
         <Link to="/products">
           <Button className="mt-6">Back to products</Button>
         </Link>
@@ -205,16 +210,10 @@ function ProductDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Not found ----
   if (!product) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Product not found
-        </h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          The product &quot;{productSlug}&quot; could not be found.
-        </p>
+        <h1 className="text-xl font-bold">Product not found</h1>
         <Link to="/products">
           <Button className="mt-6">Browse products</Button>
         </Link>
@@ -222,10 +221,7 @@ function ProductDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- SEO meta tags for this product ----
-  // These go into the document <head> and help search engines and social networks.
   const productTitle = `${product.name} – OmniMarket`;
-  // Truncate description to ~160 characters for SEO best practice
   const description =
     product.description.length > 160
       ? `${product.description.slice(0, 157)}...`
@@ -233,29 +229,19 @@ function ProductDetailPage(): React.JSX.Element {
   const imageUrl = product.images?.[0]?.url ?? '/logo.png';
   const currentUrl = window.location.href;
 
-  // ---- Add to cart handler ----
   const handleAddToCart = (): void => {
     if (!user) {
       navigate('/login', { state: { from: `/products/${product.slug}` } });
       return;
     }
-
-    addToCart.mutate({
-      productId: product.id,
-      variationId: effectiveVariationId,
-      quantity,
-    });
+    addToCart.mutate({ productId: product.id, variationId: effectiveVariationId, quantity });
   };
 
-  // ---- Price calculation ----
   const basePriceNum = toNumber(product.basePrice);
-  const selectedVariation = product.variations.find(
-    (v: Variation) => v.id === effectiveVariationId,
-  );
+  const selectedVariation = product.variations.find((v) => v.id === effectiveVariationId);
   const displayPrice = selectedVariation
     ? basePriceNum + toNumber(selectedVariation.priceModifier)
     : basePriceNum;
-
   const isAddToCartDisabled = !!(
     user &&
     product.variations.length > 0 &&
@@ -267,24 +253,20 @@ function ProductDetailPage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8" data-testid="product-detail-page">
-      {/* ---- Dynamic SEO meta tags ---- */}
       <Helmet>
         <title>{productTitle}</title>
         <meta name="description" content={description} />
-        {/* Open Graph (Facebook, LinkedIn, etc.) */}
         <meta property="og:title" content={productTitle} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="product" />
         <meta property="og:url" content={currentUrl} />
         <meta property="og:image" content={imageUrl} />
-        {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={productTitle} />
         <meta name="twitter:description" content={description} />
         <meta name="twitter:image" content={imageUrl} />
       </Helmet>
 
-      {/* ---- Breadcrumb ---- */}
       <nav className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
         <Link to="/" className="hover:text-primary-600">
           Home
@@ -298,7 +280,6 @@ function ProductDetailPage(): React.JSX.Element {
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        {/* ---- Image gallery ---- */}
         <div className="space-y-4">
           <div className="aspect-square rounded-xl overflow-hidden">
             <ProductImage
@@ -308,17 +289,12 @@ function ProductDetailPage(): React.JSX.Element {
               data-testid="main-product-image"
             />
           </div>
-
           {product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
-              {product.images.map((img: ProductImage, i: number) => (
+              {product.images.map((img, i) => (
                 <div
                   key={img.id ?? i}
-                  className={`w-20 h-20 rounded-lg overflow-hidden shrink-0 border-2 transition-colors ${
-                    i === safeIndex
-                      ? 'border-primary-500'
-                      : 'border-transparent hover:border-primary-300'
-                  }`}
+                  className={`w-20 h-20 rounded-lg overflow-hidden shrink-0 border-2 ${i === safeIndex ? 'border-primary-500' : 'border-transparent hover:border-primary-300'}`}
                 >
                   <ProductImage
                     src={img.url}
@@ -333,64 +309,63 @@ function ProductDetailPage(): React.JSX.Element {
           )}
         </div>
 
-        {/* ---- Product info ---- */}
         <div>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">{product.categoryName}</p>
-          <h1 className="mt-1 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            {product.name}
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold">{product.name}</h1>
           <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
             Sold by{' '}
             <span className="font-medium text-neutral-900 dark:text-neutral-100">
               {product.sellerName}
             </span>
+            {/* FIXED: check for null and undefined */}
+            {product.sellerRating !== null &&
+              product.sellerRating !== undefined &&
+              product.sellerRating > 0 && (
+                <span
+                  className="ml-1 inline-flex items-center gap-0.5"
+                  title={`Seller rating: ${product.sellerRating.toFixed(1)} (${product.sellerReviewCount ?? 0} reviews)`}
+                  data-testid="seller-rating"
+                >
+                  ⭐ <span className="font-medium">{product.sellerRating.toFixed(1)}</span>
+                </span>
+              )}
           </p>
-
           <p className="mt-4 text-3xl font-bold text-primary-600">${displayPrice.toFixed(2)}</p>
 
-          {/* Variations */}
           {product.variations.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
-                Options
-              </h3>
+              <h3 className="text-sm font-semibold mb-2">Options</h3>
               <div className="flex flex-wrap gap-2">
-                {product.variations.map((v: Variation) => (
+                {product.variations.map((v) => (
                   <button
                     key={v.id}
                     onClick={() => setSelectedVariationId(v.id)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                      effectiveVariationId === v.id
-                        ? 'border-primary-600 bg-primary-50 text-primary-600 dark:bg-primary-900 dark:text-primary-400'
-                        : 'border-neutral-300 text-neutral-700 hover:border-primary-400 dark:border-neutral-600 dark:text-neutral-300'
-                    } ${v.stockQty === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`px-3 py-1.5 text-sm rounded-lg border ${effectiveVariationId === v.id ? 'border-primary-600 bg-primary-50 text-primary-600' : 'border-neutral-300'} ${v.stockQty === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     disabled={v.stockQty === 0}
                     data-testid={`variation-${v.id}`}
                   >
                     {[v.size, v.color].filter(Boolean).join(' / ') || 'Standard'}
-                    {v.stockQty === 0 && ' (out of stock)'}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Quantity and Add to Cart */}
           <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center border border-neutral-300 dark:border-neutral-600 rounded-lg">
+            <div className="flex items-center border rounded-lg">
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                className="px-3 py-2"
                 data-testid="quantity-decrease"
               >
                 −
               </button>
-              <span className="px-4 py-2 text-sm font-medium" data-testid="quantity-display">
+              <span className="px-4 py-2" data-testid="quantity-display">
                 {quantity}
               </span>
               <button
                 onClick={() => setQuantity((q) => q + 1)}
-                className="px-3 py-2 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                className="px-3 py-2"
                 data-testid="quantity-increase"
               >
                 +
@@ -406,36 +381,25 @@ function ProductDetailPage(): React.JSX.Element {
             </Button>
           </div>
 
-          {/* Description */}
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
-              Description
-            </h3>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-line">
-              {product.description}
-            </p>
+            <h3 className="text-sm font-semibold mb-2">Description</h3>
+            <p className="text-sm whitespace-pre-line">{product.description}</p>
           </div>
         </div>
       </div>
 
-      {/* ==================================================================
-           RELATED PRODUCTS – "You might also like"
-           ================================================================== */}
       {product.relatedProducts && product.relatedProducts.length > 0 && (
         <section className="mt-16" data-testid="related-products-section">
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
-            You might also like
-          </h2>
+          <h2 className="text-xl font-bold mb-6">You might also like</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {product.relatedProducts.map((rp) => (
               <Link
                 key={rp.id}
                 to={`/products/${rp.slug}`}
-                className="group"
                 data-testid={`related-product-${rp.slug}`}
               >
-                <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow dark:border-neutral-700 dark:bg-neutral-800 h-full flex flex-col">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-700 mb-3">
+                <div className="rounded-xl border p-3 shadow-sm hover:shadow-md h-full flex flex-col">
+                  <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 mb-3">
                     {rp.images[0] ? (
                       <ProductImage
                         src={rp.images[0].url}
@@ -460,9 +424,7 @@ function ProductDetailPage(): React.JSX.Element {
                       </div>
                     )}
                   </div>
-                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 line-clamp-2 flex-1">
-                    {rp.name}
-                  </h3>
+                  <h3 className="text-sm font-medium line-clamp-2 flex-1">{rp.name}</h3>
                   <p className="mt-1 text-sm font-bold text-primary-600">
                     {formatPrice(rp.basePrice)}
                   </p>
@@ -477,6 +439,81 @@ function ProductDetailPage(): React.JSX.Element {
           </div>
         </section>
       )}
+
+      <section className="mt-16" data-testid="product-reviews-section">
+        <h2 className="text-xl font-bold mb-6">
+          Customer Reviews
+          {/* FIXED: check for null and undefined */}
+          {product.reviewCount !== null &&
+            product.reviewCount !== undefined &&
+            product.reviewCount > 0 && (
+              <span className="ml-2 text-base font-normal text-neutral-500">
+                ({product.reviewCount} review{product.reviewCount !== 1 ? 's' : ''})
+              </span>
+            )}
+        </h2>
+
+        {reviewsLoading && (
+          <div className="flex justify-center py-8">
+            <Spinner size="h-8 w-8" />
+          </div>
+        )}
+
+        {!reviewsLoading && reviews.length > 0 && (
+          <div className="space-y-6" data-testid="reviews-list">
+            {reviews.map((review) => (
+              <div
+                key={review.id}
+                className="rounded-xl border p-4 dark:border-neutral-700 dark:bg-neutral-800"
+                data-testid={`review-${review.id}`}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="font-medium">{review.customer.name}</span>
+                  <Stars rating={review.rating} />
+                  <span className="text-xs text-neutral-400">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                {review.comment && <p className="text-sm whitespace-pre-line">{review.comment}</p>}
+              </div>
+            ))}
+
+            {reviewsPagination && reviewsPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t">
+                <span className="text-sm">
+                  Page {reviewsPagination.currentPage} of {reviewsPagination.totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reviewsPagination.currentPage === 1}
+                    onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
+                    data-testid="reviews-prev-page"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reviewsPagination.currentPage === reviewsPagination.totalPages}
+                    onClick={() => setReviewPage((p) => p + 1)}
+                    data-testid="reviews-next-page"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!reviewsLoading && reviews.length === 0 && (
+          <p className="text-neutral-500 text-center py-8">
+            There are no reviews yet. Be the first to review this product!
+          </p>
+        )}
+      </section>
     </div>
   );
 }
