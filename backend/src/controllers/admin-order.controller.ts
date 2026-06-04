@@ -3,16 +3,11 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as adminOrderService from '../services/admin-order.service.js';
 
-/** Extract a single route parameter safely */
 function getParam(req: Request, name: string): string {
   const val = req.params[name];
   return Array.isArray(val) ? (val[0] ?? '') : (val ?? '');
 }
 
-/**
- * GET /api/admin/orders
- * Optional query: ?status=CONFIRMED&page=1&limit=10
- */
 export async function listOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const options: adminOrderService.AdminOrderListOptions = {
@@ -34,17 +29,11 @@ export async function listOrders(req: Request, res: Response, next: NextFunction
   }
 }
 
-/**
- * GET /api/admin/orders/:id
- */
 export async function getOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const orderId = getParam(req, 'id');
     const order = await adminOrderService.getAdminOrderById(orderId);
-    res.status(200).json({
-      status: 'success',
-      data: { order },
-    });
+    res.status(200).json({ status: 'success', data: { order } });
   } catch (error) {
     next(error);
   }
