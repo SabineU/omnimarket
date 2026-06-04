@@ -159,3 +159,8 @@ html.dark body {
 .animate-slide-in-right {
   animation: slideInRight 0.3s ease-out;
 }
+
+/* Hide native scrollbar for carousel containers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

@@ -108,3 +108,8 @@ html.dark body {
   border-color: #334155 !important;
   color: #f1f5f9 !important;
 }
+
+/* Hide native scrollbar for carousel containers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
