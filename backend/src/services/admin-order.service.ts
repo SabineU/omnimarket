@@ -1,7 +1,8 @@
 // backend/src/services/admin-order.service.ts
 // Business logic for admin order management.
 // Admins can view all orders (summary list) and single order details.
-// FIXED: removed invalid `seller` include from OrderItem.
+// UPDATED: admin order detail now includes seller store name on each item
+//          via product.seller.storeName.
 
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
@@ -32,15 +33,19 @@ export interface PaginatedAdminOrderSummaries {
 }
 
 // ---------------------------------------------------------------------------
-// Types for the detail endpoint (full order with items, no seller on items)
+// Types for the detail endpoint (full order with items, including seller)
 // ---------------------------------------------------------------------------
 
-/** Order enriched with full item details – NO `seller` field on items */
+/** Order enriched with full item details – seller info is included via product */
 export interface AdminEnrichedOrder extends Order {
   items: (OrderItem & {
-    product: { name: string; images: { url: string }[] };
+    product: {
+      name: string;
+      images: { url: string }[];
+      seller: { storeName: string }; // <-- seller name nested under product
+    };
     variation: { sku: string; size: string | null; color: string | null } | null;
-    // seller field removed because OrderItem has no seller relation
+    // There is no seller field directly on OrderItem – seller comes from product
   })[];
   customer: { name: string; email: string };
 }
@@ -114,9 +119,8 @@ export async function getAllOrders(
 }
 
 /**
- * Return a single order by its ID, with full item details.
+ * Return a single order by its ID, with full item details including seller name.
  * Throws if the order is not found.
- * NOTE: seller info per item is NOT included because OrderItem has no seller relation.
  */
 export async function getAdminOrderById(orderId: string): Promise<AdminEnrichedOrder> {
   const order = await prisma.order.findUnique({
@@ -125,12 +129,17 @@ export async function getAdminOrderById(orderId: string): Promise<AdminEnrichedO
       items: {
         include: {
           product: {
-            select: { name: true, images: { select: { url: true }, take: 1 } },
+            select: {
+              name: true,
+              images: { select: { url: true }, take: 1 },
+              // Include seller info via the product → seller relation
+              seller: { select: { storeName: true } },
+            },
           },
           variation: {
             select: { sku: true, size: true, color: true },
           },
-          // seller relation does not exist on OrderItem – removed
+          // No seller relation on OrderItem – seller comes from product above
         },
       },
       customer: {

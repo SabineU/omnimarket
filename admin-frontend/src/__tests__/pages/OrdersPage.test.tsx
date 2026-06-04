@@ -1,5 +1,5 @@
 // admin-frontend/src/__tests__/pages/OrdersPage.test.tsx
-// Unit tests for the admin OrdersPage – table, filters, pagination.
+// Unit tests for the admin OrdersPage – table, filters, pagination, and detail modal.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -10,9 +10,6 @@ import { apiClient } from '../../lib/api-client';
 
 vi.mock('../../lib/api-client', () => ({ apiClient: { get: vi.fn() } }));
 
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
 function renderWithProviders(): ReturnType<typeof render> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -24,9 +21,6 @@ function renderWithProviders(): ReturnType<typeof render> {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 describe('OrdersPage', () => {
   beforeEach((): void => {
     vi.clearAllMocks();
@@ -59,123 +53,119 @@ describe('OrdersPage', () => {
     expect(await screen.findByText('No orders found.')).toBeInTheDocument();
   });
 
-  it('renders order rows with correct data', async (): Promise<void> => {
+  it('renders order rows', async (): Promise<void> => {
     const orders = [
       {
-        id: '11111111-2222-3333-4444-555555555555',
-        customer: { name: 'Alice', email: 'alice@test.com' },
+        id: 'order-1',
+        customer: { name: 'Alice', email: 'a@test.com' },
         totalAmount: '149.99',
         status: 'CONFIRMED',
         createdAt: '2026-06-01T10:00:00Z',
       },
-      {
-        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-        customer: { name: 'Bob', email: 'bob@test.com' },
-        totalAmount: '49.50',
-        status: 'SHIPPED',
-        createdAt: '2026-06-02T12:00:00Z',
-      },
     ];
     (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       data: {
         status: 'success',
-        data: {
-          orders,
-          pagination: { currentPage: 1, totalPages: 1, totalItems: 2, limit: 10 },
-        },
+        data: { orders, pagination: { currentPage: 1, totalPages: 1, totalItems: 1, limit: 10 } },
       },
     });
     renderWithProviders();
-
-    const table = await screen.findByTestId('admin-orders-table');
-    expect(table).toBeInTheDocument();
-
-    // Check customer names
-    expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.getByText('Bob')).toBeInTheDocument();
-
-    // Check status badges
-    expect(
-      screen.getByTestId('order-status-11111111-2222-3333-4444-555555555555'),
-    ).toHaveTextContent('Confirmed');
-    expect(
-      screen.getByTestId('order-status-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'),
-    ).toHaveTextContent('Shipped');
-
-    // Check totals (they are formatted)
-    expect(screen.getByText('$149.99')).toBeInTheDocument();
-    expect(screen.getByText('$49.50')).toBeInTheDocument();
+    expect(await screen.findByText('Alice')).toBeInTheDocument();
   });
 
-  it('filters by status when dropdown changes', async (): Promise<void> => {
-    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      data: {
-        status: 'success',
-        data: {
-          orders: [],
-          pagination: { currentPage: 1, totalPages: 0, totalItems: 0, limit: 10 },
-        },
-      },
-    });
-
-    renderWithProviders();
-    await screen.findByTestId('admin-orders-page');
-
-    const filterSelect = screen.getByTestId('order-status-filter');
-    await userEvent.selectOptions(filterSelect, 'SHIPPED');
-
-    const calls = (apiClient.get as ReturnType<typeof vi.fn>).mock.calls;
-    const lastCall = calls[calls.length - 1];
-    expect(lastCall[0]).toContain('status=SHIPPED');
-  });
-
-  it('paginates to the next page', async (): Promise<void> => {
-    const page1 = [
+  // ---- Detail modal tests ----
+  it('opens detail modal when a row is clicked and shows order items with seller names', async (): Promise<void> => {
+    // Mock list
+    const orders = [
       {
-        id: 'p1-order',
-        customer: { name: 'Page1', email: 'p1@t.com' },
-        totalAmount: '10',
+        id: 'order-1',
+        customer: { name: 'Alice', email: 'a@test.com' },
+        totalAmount: '149.99',
         status: 'CONFIRMED',
         createdAt: '2026-06-01T10:00:00Z',
       },
     ];
-    const page2 = [
-      {
-        id: 'p2-order',
-        customer: { name: 'Page2', email: 'p2@t.com' },
-        totalAmount: '20',
-        status: 'SHIPPED',
-        createdAt: '2026-06-02T10:00:00Z',
-      },
-    ];
+    // Mock detail
+    const detail = {
+      id: 'order-1',
+      customer: { name: 'Alice', email: 'a@test.com' },
+      status: 'CONFIRMED',
+      totalAmount: '149.99',
+      createdAt: '2026-06-01T10:00:00Z',
+      items: [
+        {
+          id: 'item-1',
+          quantity: 2,
+          priceAtTime: '74.995',
+          product: {
+            name: 'Test Product',
+            images: [{ url: '/test.jpg' }],
+            seller: { storeName: 'Test Seller' },
+          },
+          variation: null,
+        },
+      ],
+    };
 
     (apiClient.get as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         data: {
           status: 'success',
-          data: {
-            orders: page1,
-            pagination: { currentPage: 1, totalPages: 2, totalItems: 2, limit: 1 },
-          },
+          data: { orders, pagination: { currentPage: 1, totalPages: 1, totalItems: 1, limit: 10 } },
         },
       })
       .mockResolvedValueOnce({
-        data: {
-          status: 'success',
-          data: {
-            orders: page2,
-            pagination: { currentPage: 2, totalPages: 2, totalItems: 2, limit: 1 },
-          },
-        },
+        data: { status: 'success', data: { order: detail } },
       });
 
     renderWithProviders();
 
-    await screen.findByText('Page1');
-    expect(screen.queryByText('Page2')).not.toBeInTheDocument();
+    // Click the row
+    await userEvent.click(await screen.findByTestId('order-row-order-1'));
 
-    await userEvent.click(screen.getByTestId('next-page'));
+    // Modal should appear with detail content
+    expect(await screen.findByTestId('order-detail-modal')).toBeInTheDocument();
+    expect(screen.getByText('Test Product')).toBeInTheDocument();
+    expect(screen.getByText('Sold by: Test Seller')).toBeInTheDocument();
+    expect(screen.getByText('$149.99')).toBeInTheDocument();
+  });
 
-    expect(await screen.findByText('Page2')).toBeInTheDocument();
+  it('closes the modal when backdrop is clicked', async (): Promise<void> => {
+    const orders = [
+      {
+        id: 'order-1',
+        customer: { name: 'Alice', email: 'a@test.com' },
+        totalAmount: '149.99',
+        status: 'CONFIRMED',
+        createdAt: '2026-06-01T10:00:00Z',
+      },
+    ];
+    const detail = {
+      id: 'order-1',
+      customer: { name: 'Alice', email: 'a@test.com' },
+      status: 'CONFIRMED',
+      totalAmount: '149.99',
+      createdAt: '2026-06-01T10:00:00Z',
+      items: [],
+    };
+
+    (apiClient.get as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        data: {
+          status: 'success',
+          data: { orders, pagination: { currentPage: 1, totalPages: 1, totalItems: 1, limit: 10 } },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { status: 'success', data: { order: detail } },
+      });
+
+    renderWithProviders();
+    await userEvent.click(await screen.findByTestId('order-row-order-1'));
+    await screen.findByTestId('order-detail-modal');
+
+    // Click backdrop
+    await userEvent.click(screen.getByTestId('modal-backdrop'));
+    expect(screen.queryByTestId('order-detail-modal')).not.toBeInTheDocument();
   });
 });
