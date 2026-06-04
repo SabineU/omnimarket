@@ -14,6 +14,11 @@ export default [
       '.husky/',
       'pnpm-lock.yaml',
       '*.min.js',
+      // Only ignore generated Cypress artifacts, not the test source files
+      'tests/api/cypress/reports/**',
+      'tests/api/cypress/downloads/**',
+      'tests/api/cypress/screenshots/**',
+      'tests/api/cypress/videos/**',
     ],
   },
   {

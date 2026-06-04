@@ -27,6 +27,10 @@ allure-results/
 allure-report/
 test-results/
 playwright-report/
+tests/api/cypress/reports/
+tests/api/cypress/downloads/
+tests/api/cypress/screenshots/
+tests/api/cypress/videos/
 
 # ------------------------------------------------------------
 # Logs & temp files

@@ -1,0 +1,19 @@
+{
+  "name": "@omnimarket/api-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cypress API contract tests for OmniMarket",
+  "scripts": {
+    "test": "cypress run",
+    "test:open": "cypress open",
+    "report": "cd cypress/reports/.jsons && mochawesome-merge *.json > ../mochawesome-merged.json && cd .. && marge mochawesome-merged.json -o . && start mochawesome-merged.html"
+  },
+  "devDependencies": {
+    "cypress": "^15.16.0",
+    "cypress-mochawesome-reporter": "^3.8.2",
+    "mochawesome": "^7.1.3",
+    "mochawesome-merge": "^5.0.0",
+    "mochawesome-report-generator": "^6.2.0",
+    "typescript": "~6.0.3"
+  }
+}

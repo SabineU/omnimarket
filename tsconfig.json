@@ -12,7 +12,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true
-  },
-  "include": ["*.config.mjs", "*.config.ts"],
-  "exclude": ["node_modules", "dist", "build", "coverage"]
+  }
 }
