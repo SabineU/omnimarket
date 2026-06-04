@@ -2,8 +2,7 @@
 // A slide‑in cart drawer that displays the user's shopping cart.
 // Now with quantity stepper (+/−), remove item button, and
 // "View Cart" / "Continue Shopping" links.
-// Footer buttons use <Link> styled as a button (no nested <Button>) to ensure
-// correct spacing.
+// FIXED: product links now use slug instead of ID.
 import { Link } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
@@ -147,8 +146,9 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps): React.JSX.Element | n
                   </div>
 
                   <div className="flex-1 min-w-0">
+                    {/* FIXED: use productSlug instead of productId */}
                     <Link
-                      to={`/products/${item.productId}`}
+                      to={`/products/${item.productSlug}`}
                       onClick={onClose}
                       className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 truncate block"
                     >

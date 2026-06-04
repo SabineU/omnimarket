@@ -1,10 +1,10 @@
 // frontend/src/pages/CartPage.tsx
 // Full cart page: items grouped by seller, quantity controls,
 // coupon validation, and checkout button.
-// Now uses toast for coupon feedback.
+// FIXED: product links now use slug instead of ID.
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast'; // <-- added
+import toast from 'react-hot-toast';
 import { useCart, type CartItem } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { useUpdateCartItem } from '../hooks/useUpdateCartItem';
@@ -13,19 +13,7 @@ import { useValidateCoupon, type ValidCoupon } from '../hooks/useValidateCoupon'
 import { Button, Spinner } from '../components/ui';
 import CouponInput from '../components/CouponInput';
 
-/**
- * CartPage renders the user's shopping cart.
- *
- * It handles three states:
- * - Loading: spinner while the cart is being fetched.
- * - Empty: a friendly message with a link to continue shopping.
- * - Populated: items grouped by seller, quantity controls, coupon input,
- *   and order summary.
- */
 function CartPage(): React.JSX.Element {
-  // ---------------------------------------------------------------------------
-  // Data & State
-  // ---------------------------------------------------------------------------
   const { user } = useAuth();
   const { data, isLoading, error } = useCart();
   const updateCartItem = useUpdateCartItem();
@@ -34,9 +22,6 @@ function CartPage(): React.JSX.Element {
   const [appliedCoupon, setAppliedCoupon] = useState<ValidCoupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
-  // ---------------------------------------------------------------------------
-  // Derived Values
-  // ---------------------------------------------------------------------------
   const cartItems: CartItem[] = useMemo(() => data?.data.items ?? [], [data?.data.items]);
 
   const sellerGroups = useMemo(() => {
@@ -77,10 +62,6 @@ function CartPage(): React.JSX.Element {
     [cartItems],
   );
 
-  // ---------------------------------------------------------------------------
-  // Handlers
-  // ---------------------------------------------------------------------------
-
   const handleIncrease = (itemId: string, currentQty: number): void => {
     updateCartItem.mutate({ itemId, quantity: currentQty + 1 });
   };
@@ -116,9 +97,6 @@ function CartPage(): React.JSX.Element {
     setCouponError(null);
   };
 
-  // ---------------------------------------------------------------------------
-  // Render: Loading State
-  // ---------------------------------------------------------------------------
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -127,9 +105,6 @@ function CartPage(): React.JSX.Element {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Render: Error State
-  // ---------------------------------------------------------------------------
   if (error) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -138,9 +113,6 @@ function CartPage(): React.JSX.Element {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Render: Not Logged In
-  // ---------------------------------------------------------------------------
   if (!user) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -157,9 +129,6 @@ function CartPage(): React.JSX.Element {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Render: Empty Cart
-  // ---------------------------------------------------------------------------
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -191,9 +160,6 @@ function CartPage(): React.JSX.Element {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Render: Populated Cart
-  // ---------------------------------------------------------------------------
   const sellerGroupArray = Array.from(sellerGroups.entries());
 
   return (
@@ -244,8 +210,9 @@ function CartPage(): React.JSX.Element {
                       className="flex gap-4"
                       data-testid={`cart-item-${item.productId}`}
                     >
+                      {/* FIXED: link to product by slug */}
                       <Link
-                        to={`/products/${item.productId}`}
+                        to={`/products/${item.productSlug}`}
                         className="w-20 h-20 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-700 shrink-0"
                       >
                         {item.productImage && (
@@ -258,8 +225,9 @@ function CartPage(): React.JSX.Element {
                       </Link>
 
                       <div className="flex-1 min-w-0">
+                        {/* FIXED: link to product by slug */}
                         <Link
-                          to={`/products/${item.productId}`}
+                          to={`/products/${item.productSlug}`}
                           className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 line-clamp-1"
                         >
                           {item.productName}

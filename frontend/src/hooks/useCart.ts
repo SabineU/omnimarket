@@ -1,16 +1,17 @@
 // frontend/src/hooks/useCart.ts
 // Fetches the authenticated user's cart items with product details.
+// UPDATED: CartItem now includes productSlug.
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from './useAuth';
 
-/** A single cart item returned by the API */
 export interface CartItem {
   id: string;
   productId: string;
   variationId: string | null;
   quantity: number;
   productName: string;
+  productSlug: string; // <-- NEW
   productImage: string | null;
   price: number;
   sellerId: string;
@@ -34,7 +35,6 @@ export function useCart(): UseQueryResult<CartResponse, Error> {
       const { data } = await apiClient.get<CartResponse>('/cart');
       return data;
     },
-    // Only fetch when the user is logged in
     enabled: !!user,
   });
 }

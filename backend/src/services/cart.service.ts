@@ -1,12 +1,14 @@
 // backend/src/services/cart.service.ts
 // Business logic for the shopping cart.
 // All functions require the authenticated user's ID.
+// UPDATED: CartItemWithDetails now includes productSlug so the frontend
+//          can build correct product links.
 import { prisma } from '../db.js';
 import type { CartItem } from '@prisma/client';
 
 /**
  * Enriched cart item returned to the client.
- * Includes product name, image URL, price, seller info, and line total.
+ * Includes product name, slug, image URL, price, seller info, and line total.
  */
 export interface CartItemWithDetails {
   id: string;
@@ -14,6 +16,7 @@ export interface CartItemWithDetails {
   variationId: string | null;
   quantity: number;
   productName: string;
+  productSlug: string; // <-- NEW: URL‑friendly product identifier
   productImage: string | null;
   price: number; // basePrice + variation priceModifier
   sellerId: string;
@@ -78,6 +81,7 @@ export async function getUserCart(userId: string): Promise<CartItemWithDetails[]
       product: {
         select: {
           name: true,
+          slug: true, // <-- NEW: needed for frontend links
           basePrice: true,
           sellerId: true,
           seller: {
@@ -110,6 +114,7 @@ export async function getUserCart(userId: string): Promise<CartItemWithDetails[]
       variationId: item.variationId,
       quantity: item.quantity,
       productName: item.product.name,
+      productSlug: item.product.slug, // <-- NEW
       productImage,
       price,
       sellerId: item.product.sellerId,
