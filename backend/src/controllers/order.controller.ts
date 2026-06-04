@@ -1,5 +1,6 @@
 // backend/src/controllers/order.controller.ts
 // Handles HTTP requests for customer order endpoints.
+// UPDATED: added deliverOrder handler for marking shipped orders as delivered.
 import type { Request, Response, NextFunction } from 'express';
 import * as orderService from '../services/order.service.js';
 
@@ -68,6 +69,24 @@ export async function cancelOrder(req: Request, res: Response, next: NextFunctio
     const userId = getUserId(req);
     const orderId = getParam(req, 'id');
     const order = await orderService.cancelOrder(orderId, userId);
+    res.status(200).json({
+      status: 'success',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/orders/:id/deliver
+ * Customer marks their shipped order as delivered.
+ */
+export async function deliverOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getUserId(req);
+    const orderId = getParam(req, 'id');
+    const order = await orderService.markOrderDelivered(orderId, userId);
     res.status(200).json({
       status: 'success',
       data: { order },

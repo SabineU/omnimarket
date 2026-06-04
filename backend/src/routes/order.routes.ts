@@ -1,8 +1,10 @@
 // backend/src/routes/order.routes.ts
 // Customer order routes – all require authentication.
+// UPDATED: added PATCH /:id/deliver for customer delivery confirmation.
 import { Router, type Request, type Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { authenticate } from '../middlewares/auth.js';
+import * as orderController from '../controllers/order.controller.js'; // <-- added
 
 const router = Router();
 
@@ -113,6 +115,11 @@ router.get('/:id', async (req: Request, res: Response) => {
     res.status(500).json({ status: 'error', message: 'Failed to fetch order' });
   }
 });
+
+// ---------------------------------------------------------------------------
+// PATCH /api/orders/:id/deliver – mark a shipped order as delivered (NEW)
+// ---------------------------------------------------------------------------
+router.patch('/:id/deliver', orderController.deliverOrder);
 
 // ---------------------------------------------------------------------------
 // PATCH /api/orders/:id/cancel – cancel an order

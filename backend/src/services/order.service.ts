@@ -1,6 +1,7 @@
 // backend/src/services/order.service.ts
 // Business logic for customer order management.
 // All functions require the authenticated user's ID.
+// UPDATED: added markOrderDelivered for customer delivery confirmation.
 
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
@@ -169,6 +170,48 @@ export async function cancelOrder(orderId: string, userId: string): Promise<Enri
     });
 
     return cancelled;
+  });
+
+  return updatedOrder as EnrichedOrder;
+}
+
+/**
+ * Mark an order as DELIVERED (customer confirms receipt).
+ * Only the customer who owns the order can perform this action.
+ * The order must be in SHIPPED status.
+ */
+export async function markOrderDelivered(orderId: string, userId: string): Promise<EnrichedOrder> {
+  // 1. Fetch the order and verify ownership + eligible status
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+  });
+
+  if (!order || order.customerId !== userId) {
+    throw new Error('Order not found');
+  }
+
+  if (order.status !== 'SHIPPED') {
+    throw new Error(
+      `Order cannot be marked as delivered because it is ${order.status}. Only shipped orders can be delivered.`,
+    );
+  }
+
+  // 2. Update status to DELIVERED
+  const updatedOrder = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: 'DELIVERED' },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: { name: true, images: { select: { url: true }, take: 1 } },
+          },
+          variation: {
+            select: { sku: true, size: true, color: true },
+          },
+        },
+      },
+    },
   });
 
   return updatedOrder as EnrichedOrder;

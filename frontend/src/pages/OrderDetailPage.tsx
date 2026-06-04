@@ -2,17 +2,19 @@
 // Displays the details of a single order after checkout (or from order history).
 // Now includes a visual status tracker, order items list, and:
 // - Cancel Order button with confirmation modal
+// - Mark as Delivered button (NEW – for shipped orders)
 // - Return Request button with reason form modal
 // - Review submission button for each product in delivered orders
 // - "Reviewed" badge + "Add more reviews" link for products already reviewed
 // - Download Invoice button that generates a PDF invoice
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import toast from 'react-hot-toast'; // <-- added
+import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useCancelOrder } from '../hooks/useCancelOrder';
 import { useReturnOrder } from '../hooks/useReturnOrder';
+import { useMarkDelivered } from '../hooks/useMarkDelivered'; // <-- NEW
 import { useSubmitReview } from '../hooks/useSubmitReview';
 import ConfirmModal from '../components/ConfirmModal';
 import ReturnRequestModal from '../components/ReturnRequestModal';
@@ -123,6 +125,7 @@ function OrderDetailPage(): React.JSX.Element {
   // Mutations
   const cancelOrder = useCancelOrder();
   const returnOrder = useReturnOrder();
+  const markDelivered = useMarkDelivered(); // <-- NEW
   const submitReview = useSubmitReview();
 
   // Modal state
@@ -247,7 +250,6 @@ function OrderDetailPage(): React.JSX.Element {
       },
       {
         onSuccess: () => {
-          // Mark this product as reviewed in local state
           setReviewedProductIds((prev) => new Set(prev).add(reviewTarget.productId));
           setReviewTarget(null);
         },
@@ -257,25 +259,21 @@ function OrderDetailPage(): React.JSX.Element {
 
   const handleReviewDismiss = (): void => setReviewTarget(null);
 
-  // ---- Invoice download handler ----                              // <-- added
+  // ---- Invoice download handler ----
   const handleDownloadInvoice = async (): Promise<void> => {
     if (!orderId) return;
     try {
-      // Make a GET request with responseType 'blob' to receive the PDF bytes
       const response = await apiClient.get(`/orders/${orderId}/invoice`, {
         responseType: 'blob',
       });
-      // Create a temporary URL pointing to the blob
       const url = window.URL.createObjectURL(
         new Blob([response.data as Blob], { type: 'application/pdf' }),
       );
-      // Programmatically click a hidden download link
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `invoice-${orderId.slice(0, 8)}.pdf`);
       document.body.appendChild(link);
       link.click();
-      // Clean up the temporary element and URL
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
@@ -560,6 +558,33 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
+      {/* ---- Mark as Delivered button (NEW) ---- */}
+      {order.status === 'SHIPPED' && (
+        <div
+          className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950"
+          data-testid="mark-delivered-section"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                Did you receive this order?
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                Mark it as delivered to complete your purchase.
+              </p>
+            </div>
+            <Button
+              onClick={() => orderId && markDelivered.mutate(orderId)}
+              loading={markDelivered.isPending}
+              className="w-full sm:w-auto"
+              data-testid="mark-delivered-button"
+            >
+              Mark as Delivered
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ---- Return Request button ---- */}
       {order.status === 'DELIVERED' && (
         <div
@@ -589,7 +614,7 @@ function OrderDetailPage(): React.JSX.Element {
 
       {/* ---- Actions ---- */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        {/* Download Invoice button */} {/* <-- added */}
+        {/* Download Invoice button */}
         <Button
           variant="outline"
           onClick={handleDownloadInvoice}
