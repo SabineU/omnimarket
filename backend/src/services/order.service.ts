@@ -1,17 +1,21 @@
 // backend/src/services/order.service.ts
 // Business logic for customer order management.
 // All functions require the authenticated user's ID.
-// UPDATED: added markOrderDelivered for customer delivery confirmation.
+// UPDATED: markOrderDelivered now sets all items to DELIVERED and
+//          recomputes the order status; uses per‑item fulfillment.
 
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
+import { FulfillmentStatus } from '@prisma/client'; // <-- NEW
 import type { OrderStatus } from '@omnimarket/shared';
+import { recomputeOrderStatus } from './seller-order.service.js'; // <-- NEW
 
 /** Order enriched with items for the frontend */
 export interface EnrichedOrder extends Order {
   items: (OrderItem & {
     product: { name: string; images: { url: string }[] };
     variation: { sku: string; size: string | null; color: string | null } | null;
+    // fulfillmentStatus is already on OrderItem, so it appears automatically
   })[];
 }
 
@@ -70,6 +74,8 @@ export async function getUserOrders(
               select: { sku: true, size: true, color: true },
             },
           },
+          // Note: scalar fields of OrderItem (like fulfillmentStatus) are included automatically
+          // when using `include` on a relation, unless a `select` overrides it.
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -124,7 +130,6 @@ export async function getOrderById(orderId: string, userId: string): Promise<Enr
  * Runs in a database transaction to guarantee atomicity.
  */
 export async function cancelOrder(orderId: string, userId: string): Promise<EnrichedOrder> {
-  // 1. Fetch the order and verify ownership + cancellable status
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -139,9 +144,7 @@ export async function cancelOrder(orderId: string, userId: string): Promise<Enri
     throw new OrderCancellationError(`Order cannot be cancelled because it is ${order.status}`);
   }
 
-  // 2. Perform cancellation in a transaction
   const updatedOrder = await prisma.$transaction(async (tx) => {
-    // Restore stock for each item with a variation
     for (const item of order.items) {
       if (item.variationId) {
         await tx.productVariation.update({
@@ -151,7 +154,6 @@ export async function cancelOrder(orderId: string, userId: string): Promise<Enri
       }
     }
 
-    // Change order status to CANCELLED
     const cancelled = await tx.order.update({
       where: { id: orderId },
       data: { status: 'CANCELLED' },
@@ -178,7 +180,8 @@ export async function cancelOrder(orderId: string, userId: string): Promise<Enri
 /**
  * Mark an order as DELIVERED (customer confirms receipt).
  * Only the customer who owns the order can perform this action.
- * The order must be in SHIPPED status.
+ * The order must be in SHIPPED or PARTIALLY_SHIPPED status.
+ * Sets all items to DELIVERED and recomputes the order status.
  */
 export async function markOrderDelivered(orderId: string, userId: string): Promise<EnrichedOrder> {
   // 1. Fetch the order and verify ownership + eligible status
@@ -190,16 +193,24 @@ export async function markOrderDelivered(orderId: string, userId: string): Promi
     throw new Error('Order not found');
   }
 
-  if (order.status !== 'SHIPPED') {
+  if (order.status !== 'SHIPPED' && order.status !== 'PARTIALLY_SHIPPED') {
     throw new Error(
       `Order cannot be marked as delivered because it is ${order.status}. Only shipped orders can be delivered.`,
     );
   }
 
-  // 2. Update status to DELIVERED
-  const updatedOrder = await prisma.order.update({
+  // 2. Set all items to DELIVERED
+  await prisma.orderItem.updateMany({
+    where: { orderId },
+    data: { fulfillmentStatus: FulfillmentStatus.DELIVERED },
+  });
+
+  // 3. Recompute the overall order status (will become DELIVERED)
+  await recomputeOrderStatus(orderId);
+
+  // 4. Fetch the updated order with enriched items
+  const updatedOrder = await prisma.order.findUnique({
     where: { id: orderId },
-    data: { status: 'DELIVERED' },
     include: {
       items: {
         include: {
@@ -213,6 +224,10 @@ export async function markOrderDelivered(orderId: string, userId: string): Promi
       },
     },
   });
+
+  if (!updatedOrder) {
+    throw new Error('Order not found after update');
+  }
 
   return updatedOrder as EnrichedOrder;
 }

@@ -1,12 +1,8 @@
 // frontend/src/pages/OrderDetailPage.tsx
 // Displays the details of a single order after checkout (or from order history).
-// Now includes a visual status tracker, order items list, and:
-// - Cancel Order button with confirmation modal
-// - Mark as Delivered button (NEW – for shipped orders)
-// - Return Request button with reason form modal
-// - Review submission button for each product in delivered orders
-// - "Reviewed" badge + "Add more reviews" link for products already reviewed
-// - Download Invoice button that generates a PDF invoice
+// Now includes per‑item fulfillment status, correct tracker order
+// (Confirmed → Partially Shipped → Shipped → Delivered), and the
+// Mark as Delivered button for partially shipped orders.
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -14,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useCancelOrder } from '../hooks/useCancelOrder';
 import { useReturnOrder } from '../hooks/useReturnOrder';
-import { useMarkDelivered } from '../hooks/useMarkDelivered'; // <-- NEW
+import { useMarkDelivered } from '../hooks/useMarkDelivered';
 import { useSubmitReview } from '../hooks/useSubmitReview';
 import ConfirmModal from '../components/ConfirmModal';
 import ReturnRequestModal from '../components/ReturnRequestModal';
@@ -25,7 +21,6 @@ import { Button, Spinner } from '../components/ui';
 // Types – must match the backend's actual response shape
 // ---------------------------------------------------------------------------
 
-/** A single line item in the order */
 interface OrderItem {
   id: string;
   quantity: number;
@@ -41,9 +36,9 @@ interface OrderItem {
     color: string | null;
   } | null;
   hasReviewed?: boolean;
+  fulfillmentStatus?: string; // per‑item shipping status
 }
 
-/** Full order object returned by GET /orders/:id */
 interface Order {
   id: string;
   customerId?: string;
@@ -63,11 +58,12 @@ interface OrderResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Status tracker configuration
+// Status tracker steps – correct logical order
 // ---------------------------------------------------------------------------
 
 const STATUS_STEPS = [
   { label: 'Confirmed', status: 'CONFIRMED' },
+  { label: 'Partially Shipped', status: 'PARTIALLY_SHIPPED' },
   { label: 'Shipped', status: 'SHIPPED' },
   { label: 'Delivered', status: 'DELIVERED' },
 ] as const;
@@ -122,27 +118,20 @@ function OrderDetailPage(): React.JSX.Element {
     enabled: !!orderId,
   });
 
-  // Mutations
   const cancelOrder = useCancelOrder();
   const returnOrder = useReturnOrder();
-  const markDelivered = useMarkDelivered(); // <-- NEW
+  const markDelivered = useMarkDelivered();
   const submitReview = useSubmitReview();
 
-  // Modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
-
-  // Review modal target
   const [reviewTarget, setReviewTarget] = useState<{
     productId: string;
     productName: string;
     isAdditional?: boolean;
   } | null>(null);
-
-  // Track which product IDs have been reviewed (persisted + local)
   const [reviewedProductIds, setReviewedProductIds] = useState<Set<string>>(new Set());
 
-  // When the order data loads, initialise reviewedProductIds from persisted data.
   useEffect(() => {
     if (data?.data.order.items) {
       const initialReviewed = new Set<string>();
@@ -151,14 +140,11 @@ function OrderDetailPage(): React.JSX.Element {
           initialReviewed.add(item.product.id);
         }
       }
-      // This is a legitimate use of setState inside an effect:
-      // we synchronise local state with the fetched server data.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setReviewedProductIds(initialReviewed);
     }
   }, [data]);
 
-  // ---- Loading state ----
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -167,7 +153,6 @@ function OrderDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Error state ----
   if (error) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -186,10 +171,8 @@ function OrderDetailPage(): React.JSX.Element {
             />
           </svg>
         </div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Failed to load order
-        </h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">{error.message}</p>
+        <h1 className="text-xl font-bold">Failed to load order</h1>
+        <p className="mt-2">{error.message}</p>
         <Link to="/orders">
           <Button variant="outline" className="mt-6">
             View all orders
@@ -203,12 +186,7 @@ function OrderDetailPage(): React.JSX.Element {
   if (!order) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-          Order not found
-        </h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          The order you&apos;re looking for doesn&apos;t exist or has been removed.
-        </p>
+        <h1 className="text-xl font-bold">Order not found</h1>
         <Link to="/orders">
           <Button className="mt-6">View all orders</Button>
         </Link>
@@ -216,14 +194,12 @@ function OrderDetailPage(): React.JSX.Element {
     );
   }
 
-  // ---- Cancel order handlers ----
   const openCancelModal = (): void => setShowCancelModal(true);
   const handleCancelConfirm = (): void => {
     if (orderId) cancelOrder.mutate(orderId, { onSuccess: () => setShowCancelModal(false) });
   };
   const handleCancelDismiss = (): void => setShowCancelModal(false);
 
-  // ---- Return order handlers ----
   const openReturnModal = (): void => setShowReturnModal(true);
   const handleReturnSubmit = (data: { reason: string }): void => {
     if (orderId)
@@ -234,11 +210,9 @@ function OrderDetailPage(): React.JSX.Element {
   };
   const handleReturnDismiss = (): void => setShowReturnModal(false);
 
-  // ---- Review handlers ----
   const openReviewModal = (productId: string, productName: string, isAdditional = false): void => {
     setReviewTarget({ productId, productName, isAdditional });
   };
-
   const handleReviewSubmit = (rating: number, comment: string): void => {
     if (!reviewTarget) return;
     submitReview.mutate(
@@ -256,16 +230,12 @@ function OrderDetailPage(): React.JSX.Element {
       },
     );
   };
-
   const handleReviewDismiss = (): void => setReviewTarget(null);
 
-  // ---- Invoice download handler ----
   const handleDownloadInvoice = async (): Promise<void> => {
     if (!orderId) return;
     try {
-      const response = await apiClient.get(`/orders/${orderId}/invoice`, {
-        responseType: 'blob',
-      });
+      const response = await apiClient.get(`/orders/${orderId}/invoice`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(
         new Blob([response.data as Blob], { type: 'application/pdf' }),
       );
@@ -286,7 +256,7 @@ function OrderDetailPage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8" data-testid="order-detail-page">
-      {/* ---- Confirmation header ---- */}
+      {/* Confirmation header */}
       {isPositiveStatus(order.status) && (
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
@@ -304,12 +274,11 @@ function OrderDetailPage(): React.JSX.Element {
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            Order {formatStatus(order.status)}
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+          <h1 className="text-2xl font-bold">Order {formatStatus(order.status)}</h1>
+          <p className="mt-1 text-sm text-neutral-500">
             {order.status === 'CONFIRMED' &&
-              'Thank you for your purchase! Your order has been placed successfully.'}
+              'Thank you for your purchase! Your order has been confirmed.'}
+            {order.status === 'PARTIALLY_SHIPPED' && 'Some items in your order have been shipped.'}
             {order.status === 'SHIPPED' && 'Your order is on its way!'}
             {order.status === 'DELIVERED' && 'Your order has been delivered. Enjoy!'}
             {order.status === 'PENDING' && 'Your order is being processed.'}
@@ -317,7 +286,7 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Status tracker ---- */}
+      {/* Status tracker – correct order: Confirmed → Partially Shipped → Shipped → Delivered */}
       {currentStepIndex >= 0 && (
         <div className="mb-8" data-testid="order-status-tracker">
           <nav aria-label="Order progress">
@@ -369,7 +338,7 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Cancelled / Returned status notice ---- */}
+      {/* Cancelled / Returned notice */}
       {!isPositiveStatus(order.status) && (
         <div className="mb-8 rounded-xl border border-error-200 bg-error-50 p-4 text-center dark:border-error-800 dark:bg-error-950">
           <h1 className="text-xl font-bold text-error-700 dark:text-error-400">
@@ -383,20 +352,16 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Order details card ---- */}
+      {/* Order details card */}
       <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-          Order Details
-        </h2>
+        <h2 className="text-lg font-semibold mb-4">Order Details</h2>
         <dl className="space-y-3">
           <div className="flex justify-between text-sm">
-            <dt className="text-neutral-500 dark:text-neutral-400">Order Number</dt>
-            <dd className="font-medium text-neutral-900 dark:text-neutral-100">
-              #{order.id.slice(0, 8).toUpperCase()}
-            </dd>
+            <dt className="text-neutral-500">Order Number</dt>
+            <dd className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</dd>
           </div>
           <div className="flex justify-between text-sm">
-            <dt className="text-neutral-500 dark:text-neutral-400">Status</dt>
+            <dt className="text-neutral-500">Status</dt>
             <dd>
               <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
                 {formatStatus(order.status)}
@@ -404,30 +369,21 @@ function OrderDetailPage(): React.JSX.Element {
             </dd>
           </div>
           <div className="flex justify-between text-sm">
-            <dt className="text-neutral-500 dark:text-neutral-400">Total</dt>
-            <dd className="font-semibold text-neutral-900 dark:text-neutral-100">
-              ${parseFloat(order.totalAmount).toFixed(2)}
-            </dd>
+            <dt className="text-neutral-500">Total</dt>
+            <dd className="font-semibold">${parseFloat(order.totalAmount).toFixed(2)}</dd>
           </div>
           <div className="flex justify-between text-sm">
-            <dt className="text-neutral-500 dark:text-neutral-400">Placed on</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">
-              {formatDate(order.createdAt)}
-            </dd>
+            <dt className="text-neutral-500">Placed on</dt>
+            <dd>{formatDate(order.createdAt)}</dd>
           </div>
         </dl>
       </div>
 
-      {/* ---- Order items ---- */}
+      {/* Order items – with per‑item fulfillment status */}
       {order.items && order.items.length > 0 && (
         <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-            Items ({order.items.length})
-          </h2>
-          <ul
-            className="divide-y divide-neutral-100 dark:divide-neutral-700"
-            data-testid="order-items-list"
-          >
+          <h2 className="text-lg font-semibold mb-4">Items ({order.items.length})</h2>
+          <ul className="divide-y" data-testid="order-items-list">
             {order.items.map((item) => (
               <li
                 key={item.id}
@@ -460,30 +416,39 @@ function OrderDetailPage(): React.JSX.Element {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                    {item.product.name}
-                  </p>
+                  <p className="text-sm font-medium truncate">{item.product.name}</p>
                   {item.variation && (
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    <p className="text-xs text-neutral-500 mt-0.5">
                       {[item.variation.size, item.variation.color].filter(Boolean).join(' / ') ||
                         item.variation.sku}
                     </p>
                   )}
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Qty: {item.quantity}
-                    </span>
-                    <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    <span className="text-xs text-neutral-500">Qty: {item.quantity}</span>
+                    <span className="text-sm font-semibold">
                       ${parseFloat(item.priceAtTime).toFixed(2)}
                     </span>
                   </div>
 
-                  {/* ---- Review section (only for delivered orders) ---- */}
+                  {/* Per‑item fulfillment status */}
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Status:{' '}
+                    <span className="font-medium" data-testid={`item-status-${item.id}`}>
+                      {item.fulfillmentStatus === 'SHIPPED'
+                        ? 'Shipped'
+                        : item.fulfillmentStatus === 'CONFIRMED'
+                          ? 'Confirmed'
+                          : item.fulfillmentStatus === 'DELIVERED'
+                            ? 'Delivered'
+                            : 'Pending'}
+                    </span>
+                  </p>
+
+                  {/* Review section (only for delivered orders) */}
                   {order.status === 'DELIVERED' && (
                     <div className="mt-2 flex items-center gap-3">
                       {reviewedProductIds.has(item.product.id) ? (
                         <>
-                          {/* Reviewed badge */}
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
                             <svg
                               className="h-3.5 w-3.5"
@@ -500,7 +465,6 @@ function OrderDetailPage(): React.JSX.Element {
                             </svg>
                             Reviewed
                           </span>
-                          {/* Add more reviews link */}
                           <button
                             type="button"
                             onClick={() =>
@@ -531,7 +495,7 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Cancel Order button ---- */}
+      {/* Cancel Order */}
       {isCancellable(order.status) && (
         <div
           className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950"
@@ -558,8 +522,8 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Mark as Delivered button (NEW) ---- */}
-      {order.status === 'SHIPPED' && (
+      {/* Mark as Delivered (for SHIPPED or PARTIALLY_SHIPPED) */}
+      {(order.status === 'SHIPPED' || order.status === 'PARTIALLY_SHIPPED') && (
         <div
           className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950"
           data-testid="mark-delivered-section"
@@ -585,7 +549,7 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Return Request button ---- */}
+      {/* Return Request */}
       {order.status === 'DELIVERED' && (
         <div
           className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"
@@ -612,9 +576,8 @@ function OrderDetailPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* ---- Actions ---- */}
+      {/* Actions */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        {/* Download Invoice button */}
         <Button
           variant="outline"
           onClick={handleDownloadInvoice}
@@ -635,27 +598,23 @@ function OrderDetailPage(): React.JSX.Element {
         </Link>
       </div>
 
-      {/* ---- Cancel Confirmation Modal ---- */}
+      {/* Modals */}
       <ConfirmModal
         isOpen={showCancelModal}
         onCancel={handleCancelDismiss}
         onConfirm={handleCancelConfirm}
         title="Cancel Order"
-        message="Are you sure you want to cancel this order? This action cannot be undone."
+        message="Are you sure you want to cancel this order?"
         confirmLabel="Yes, cancel order"
         cancelLabel="Keep order"
         isLoading={cancelOrder.isPending}
       />
-
-      {/* ---- Return Request Modal ---- */}
       <ReturnRequestModal
         isOpen={showReturnModal}
         onCancel={handleReturnDismiss}
         onSubmit={handleReturnSubmit}
         isLoading={returnOrder.isPending}
       />
-
-      {/* ---- Review Form Modal ---- */}
       {reviewTarget && (
         <ReviewForm
           isOpen={reviewTarget !== null}

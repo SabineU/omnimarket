@@ -1,6 +1,8 @@
 // backend/prisma/schema.prisma
 // OmniMarket – complete database schema for a multi‑vendor e‑commerce platform.
 // This file defines all tables, relations, enums, and indexes.
+// UPDATED: added PARTIALLY_SHIPPED to OrderStatus, new FulfillmentStatus enum,
+//          and fulfillmentStatus field on OrderItem.
 
 datasource db {
   provider = "postgresql"
@@ -35,6 +37,7 @@ enum OrderStatus {
   PENDING
   CONFIRMED
   SHIPPED
+  PARTIALLY_SHIPPED   // <-- NEW: some items shipped, others not yet
   DELIVERED
   RETURN_REQUESTED
   CANCELLED
@@ -53,6 +56,15 @@ enum PaymentStatus {
 enum DiscountType {
   PERCENTAGE
   FIXED_AMOUNT
+}
+
+/// Per‑item fulfillment status – tracks shipping progress per order item
+enum FulfillmentStatus {   // <-- NEW ENUM
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
 
 // =============================================================================
@@ -254,17 +266,19 @@ model Order {
 }
 
 /// OrderItem – a line item in an order, linked to a specific seller for fulfillment.
+/// UPDATED: added fulfillmentStatus to track per‑item shipping progress.
 model OrderItem {
-  id            String             @id @default(uuid())
-  orderId       String
-  order         Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product            @relation(fields: [productId], references: [id])
-  variationId   String?
-  variation     ProductVariation?  @relation(fields: [variationId], references: [id], onDelete: SetNull)
-  sellerId      String             // seller at time of purchase (redundant for easy filtering)
-  quantity      Int
-  priceAtTime   Decimal            // snapshot of price (basePrice + modifiers) at purchase time
+  id                String             @id @default(uuid())
+  orderId           String
+  order             Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product            @relation(fields: [productId], references: [id])
+  variationId       String?
+  variation         ProductVariation?  @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  sellerId          String             // seller at time of purchase (redundant for easy filtering)
+  quantity          Int
+  priceAtTime       Decimal            // snapshot of price (basePrice + modifiers) at purchase time
+  fulfillmentStatus FulfillmentStatus  @default(PENDING)   // <-- NEW
 
   @@map("order_items")
 }

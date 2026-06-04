@@ -1,16 +1,30 @@
 // backend/src/services/seller-order.service.ts
 // Business logic for seller order management.
-// All functions require the authenticated seller's ID.
-// FIXED: now includes customer name/email so the seller portal can display them.
-
+// UPDATED: sellers update fulfillmentStatus on their items;
+//          custom error for invalid status transitions.
 import { prisma } from '../db.js';
 import type { Order, OrderItem, Prisma } from '@prisma/client';
 import type { OrderStatus as PrismaOrderStatus } from '@prisma/client';
+import type { FulfillmentStatus } from '@prisma/client';
 import type { OrderStatus } from '@omnimarket/shared';
 
-/** Order enriched with items (seller‑filtered) and customer info */
+// ---------------------------------------------------------------------------
+// Custom Errors
+// ---------------------------------------------------------------------------
+
+export class OrderStatusTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OrderStatusTransitionError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export interface SellerEnrichedOrder extends Order {
-  customer?: { name: string; email: string }; // <-- added
+  customer?: { name: string; email: string };
   items: (OrderItem & {
     product: { name: string; images: { url: string }[] };
     variation: { sku: string; size: string | null; color: string | null } | null;
@@ -34,13 +48,39 @@ export interface PaginatedSellerOrders {
 }
 
 // ---------------------------------------------------------------------------
-// Public Functions
+// Helper: recompute the overall order status after an item update
 // ---------------------------------------------------------------------------
 
-/**
- * Return all orders that contain items belonging to the given seller.
- * Only the seller's items are included, plus the customer's name & email.
- */
+export async function recomputeOrderStatus(orderId: string): Promise<void> {
+  const items = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: { fulfillmentStatus: true },
+  });
+
+  const statuses = items.map((i) => i.fulfillmentStatus);
+
+  let newStatus: OrderStatus;
+
+  if (statuses.every((s) => s === 'DELIVERED')) {
+    newStatus = 'DELIVERED';
+  } else if (statuses.every((s) => s === 'SHIPPED' || s === 'DELIVERED')) {
+    newStatus = 'SHIPPED';
+  } else if (statuses.some((s) => s === 'SHIPPED' || s === 'DELIVERED')) {
+    newStatus = 'PARTIALLY_SHIPPED';
+  } else {
+    newStatus = 'CONFIRMED';
+  }
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status: newStatus as PrismaOrderStatus },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Public functions
+// ---------------------------------------------------------------------------
+
 export async function getSellerOrders(
   sellerId: string,
   options: SellerOrderListOptions = {},
@@ -53,23 +93,18 @@ export async function getSellerOrders(
     items: { some: { sellerId } },
   };
   if (options.status) {
-    where.status = options.status as OrderStatus;
+    where.status = options.status as PrismaOrderStatus;
   }
 
   const [orders, totalItems] = await Promise.all([
     prisma.order.findMany({
       where,
       include: {
-        customer: {
-          // <-- added
-          select: { name: true, email: true },
-        },
+        customer: { select: { name: true, email: true } },
         items: {
           where: { sellerId },
           include: {
-            product: {
-              select: { name: true, images: { select: { url: true }, take: 1 } },
-            },
+            product: { select: { name: true, images: { select: { url: true }, take: 1 } } },
             variation: { select: { sku: true, size: true, color: true } },
           },
         },
@@ -92,10 +127,6 @@ export async function getSellerOrders(
   };
 }
 
-/**
- * Return a single order by its ID, but only include items that belong to the seller.
- * Throws if the order does not exist or does not contain the seller's items.
- */
 export async function getSellerOrderById(
   orderId: string,
   sellerId: string,
@@ -103,16 +134,11 @@ export async function getSellerOrderById(
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      customer: {
-        // <-- added
-        select: { name: true, email: true },
-      },
+      customer: { select: { name: true, email: true } },
       items: {
         where: { sellerId },
         include: {
-          product: {
-            select: { name: true, images: { select: { url: true }, take: 1 } },
-          },
+          product: { select: { name: true, images: { select: { url: true }, take: 1 } } },
           variation: { select: { sku: true, size: true, color: true } },
         },
       },
@@ -126,51 +152,40 @@ export async function getSellerOrderById(
   return order as SellerEnrichedOrder;
 }
 
-/**
- * Update the status of an order on behalf of a seller.
- * (unchanged – already works correctly)
- */
 export async function updateOrderStatus(
   sellerId: string,
   orderId: string,
   newStatus: string,
 ): Promise<SellerEnrichedOrder> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { items: true },
+  const items = await prisma.orderItem.findMany({
+    where: { orderId, sellerId },
+    select: { id: true, fulfillmentStatus: true },
   });
 
-  if (!order) throw new Error('Order not found');
-
-  const sellerItemExists = order.items.some((item) => item.sellerId === sellerId);
-  if (!sellerItemExists) throw new Error('Order not found');
+  if (items.length === 0) {
+    throw new Error('Order not found');
+  }
 
   const allowedTransitions: Record<string, string[]> = {
     PENDING: ['CONFIRMED'],
     CONFIRMED: ['SHIPPED'],
   };
 
-  const allowed = allowedTransitions[order.status];
-  if (!allowed || !allowed.includes(newStatus)) {
-    throw new Error(`Cannot move order from ${order.status} to ${newStatus}`);
+  for (const item of items) {
+    const allowed = allowedTransitions[item.fulfillmentStatus];
+    if (!allowed || !allowed.includes(newStatus)) {
+      throw new OrderStatusTransitionError(
+        `Cannot move item from ${item.fulfillmentStatus} to ${newStatus}`,
+      );
+    }
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: { status: newStatus as PrismaOrderStatus },
-    include: {
-      customer: { select: { name: true, email: true } }, // <-- added
-      items: {
-        where: { sellerId },
-        include: {
-          product: {
-            select: { name: true, images: { select: { url: true }, take: 1 } },
-          },
-          variation: { select: { sku: true, size: true, color: true } },
-        },
-      },
-    },
+  await prisma.orderItem.updateMany({
+    where: { orderId, sellerId },
+    data: { fulfillmentStatus: newStatus as FulfillmentStatus },
   });
 
-  return updated as SellerEnrichedOrder;
+  await recomputeOrderStatus(orderId);
+
+  return getSellerOrderById(orderId, sellerId);
 }

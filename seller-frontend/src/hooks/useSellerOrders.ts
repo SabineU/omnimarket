@@ -1,5 +1,6 @@
 // seller-frontend/src/hooks/useSellerOrders.ts
 // React Query hook to fetch orders that contain the seller's products.
+// UPDATED: SellerOrderItem now includes fulfillmentStatus.
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 
@@ -8,6 +9,8 @@ export interface SellerOrderItem {
   id: string;
   quantity: number;
   priceAtTime: number;
+  // NEW: per‑item shipping progress
+  fulfillmentStatus?: string; // "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED"
   product: {
     id: string;
     name: string;
@@ -23,7 +26,7 @@ export interface SellerOrderItem {
 /** An order from the seller's perspective */
 export interface SellerOrder {
   id: string;
-  status: string; // e.g. "CONFIRMED", "SHIPPED"
+  status: string; // e.g. "CONFIRMED", "SHIPPED", "PARTIALLY_SHIPPED"
   totalAmount: string;
   createdAt: string;
   trackingNumber: string | null;

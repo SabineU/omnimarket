@@ -16,6 +16,8 @@ import { ReturnRequestError, RefundProcessError } from '../services/return.servi
 import { ReviewValidationError } from '../services/review.service.js';
 import { PayoutValidationError } from '../services/payout.service.js';
 import { ImpersonationError } from '../services/impersonation.service.js';
+import { ProductNotFoundError } from '../services/public-product.service.js';
+import { OrderStatusTransitionError } from '../services/seller-order.service.js';
 import Stripe from 'stripe';
 
 /**
@@ -86,6 +88,14 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
     // ---- Impersonation errors ----
   } else if (err instanceof ImpersonationError) {
+    res.status(400).json({ status: 'error', message: err.message });
+
+    // ---- Product Not Found ----
+  } else if (err instanceof ProductNotFoundError) {
+    res.status(404).json({ status: 'error', message: err.message });
+
+    // ---- Invalid Order Status Transition ----
+  } else if (err instanceof OrderStatusTransitionError) {
     res.status(400).json({ status: 'error', message: err.message });
 
     // ---- Stripe SDK errors ----

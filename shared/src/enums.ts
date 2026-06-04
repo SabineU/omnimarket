@@ -3,6 +3,7 @@
 // We use string literal unions for better type safety and compatibility with Zod.
 // The runtime values are UPPERCASE because they match the Prisma enum values
 // stored in the PostgreSQL database.
+// UPDATED: added PARTIALLY_SHIPPED to OrderStatus, and new FulfillmentStatus.
 
 /**
  * User roles in the system.
@@ -35,6 +36,7 @@ export const OrderStatus = {
   PENDING: 'PENDING',
   CONFIRMED: 'CONFIRMED',
   SHIPPED: 'SHIPPED',
+  PARTIALLY_SHIPPED: 'PARTIALLY_SHIPPED', // <-- NEW: some items shipped, others not
   DELIVERED: 'DELIVERED',
   RETURN_REQUESTED: 'RETURN_REQUESTED',
   CANCELLED: 'CANCELLED',
@@ -52,3 +54,16 @@ export const PaymentStatus = {
   REFUNDED: 'REFUNDED',
 } as const;
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+
+/**
+ * Per‑item fulfillment status – tracks shipping progress for each order item.
+ * This is how multi‑vendor orders track individual seller progress.
+ */
+export const FulfillmentStatus = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type FulfillmentStatus = (typeof FulfillmentStatus)[keyof typeof FulfillmentStatus];
